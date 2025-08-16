@@ -1,15 +1,14 @@
 const express = require('express');
 const { query, validationResult } = require('express-validator');
 const { WorkoutSession } = require('../models');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
-
-// For MVP, we'll use a default user
-const DEFAULT_USER_ID = '000000000000000000000001';
 
 // GET /api/analytics/weekly-tonnage
 // Get weekly tonnage data for charts
 router.get('/weekly-tonnage',
+  authenticateToken,
   [
     query('range')
       .optional()
@@ -52,7 +51,7 @@ router.get('/weekly-tonnage',
       
       // Get sessions within date range
       const sessions = await WorkoutSession.find({
-        userId: DEFAULT_USER_ID,
+        userId: req.user._id,
         performedDate: {
           $gte: start.toISOString().split('T')[0],
           $lte: end.toISOString().split('T')[0]
@@ -60,7 +59,7 @@ router.get('/weekly-tonnage',
       }).select('performedDate totalTonnage totalSets totalReps totalBwReps');
 
       // Group by week
-      const weeklyData = this.groupSessionsByWeek(sessions, start, end);
+      const weeklyData = groupSessionsByWeek(sessions, start, end);
       
       res.json({
         data: weeklyData,
@@ -129,7 +128,6 @@ function groupSessionsByWeek(sessions, startDate, endDate) {
   return weeks;
 }
 
-// Add the helper function to router context
-router.groupSessionsByWeek = groupSessionsByWeek;
+// Helper function is now accessible as a regular function
 
 module.exports = router;

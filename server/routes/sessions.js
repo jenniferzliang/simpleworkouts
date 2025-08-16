@@ -1,15 +1,14 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const { WorkoutSession, WorkoutExercise, User } = require('../models');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
-
-// For MVP, we'll use a default user - in production this would come from auth
-const DEFAULT_USER_ID = '000000000000000000000001'; // Will be created in seed data
 
 // POST /api/sessions
 // Create a new workout session
 router.post('/',
+  authenticateToken,
   [
     body('text')
       .notEmpty()
@@ -48,7 +47,7 @@ router.post('/',
       
       // Create workout session
       const session = new WorkoutSession({
-        userId: DEFAULT_USER_ID,
+        userId: req.user._id,
         performedAtLocal: performedDate,
         performedDate: performedDate.toISOString().split('T')[0], // YYYY-MM-DD
         sourceText: text,
@@ -106,6 +105,7 @@ router.post('/',
 // GET /api/sessions
 // List user's workout sessions with pagination
 router.get('/',
+  authenticateToken,
   [
     query('limit')
       .optional()
@@ -142,7 +142,7 @@ router.get('/',
       } = req.query;
 
       // Build query
-      const query = { userId: DEFAULT_USER_ID };
+      const query = { userId: req.user._id };
       
       if (cursor) {
         query._id = { $lt: cursor };
@@ -198,11 +198,15 @@ router.get('/',
 // GET /api/sessions/:id
 // Get detailed session with exercises and sets
 router.get('/:id',
+  authenticateToken,
   async (req, res) => {
     try {
       const { id } = req.params;
       
-      const session = await WorkoutSession.findById(id);
+      const session = await WorkoutSession.findOne({ 
+        _id: id, 
+        userId: req.user._id 
+      });
       if (!session) {
         return res.status(404).json({ error: 'Session not found' });
       }
