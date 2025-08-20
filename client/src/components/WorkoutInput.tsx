@@ -76,37 +76,50 @@ const WorkoutInput: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <div className="bg-white rounded-lg shadow-sm border">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">
-            Log Your Workout
-          </h1>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div className="p-8">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              💪 Log Your Workout
+            </h1>
+            <p className="text-gray-600">
+              Enter your exercises in natural language and we'll parse them for you
+            </p>
+          </div>
 
           {/* Unit Preference */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Unit Preference
+          <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <label className="block text-sm font-medium text-blue-800 mb-3">
+              ⚖️ Unit Preference
             </label>
             <div className="flex space-x-4">
-              <label className="flex items-center">
+              <label className={`flex items-center px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                unitPreference === 'lb' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-white text-gray-700 hover:bg-blue-100'
+              }`}>
                 <input
                   type="radio"
                   name="unit"
                   value="lb"
                   checked={unitPreference === 'lb'}
                   onChange={(e) => setUnitPreference(e.target.value as 'lb')}
-                  className="mr-2"
+                  className="sr-only"
                 />
                 Pounds (lb)
               </label>
-              <label className="flex items-center">
+              <label className={`flex items-center px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                unitPreference === 'kg' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-white text-gray-700 hover:bg-blue-100'
+              }`}>
                 <input
                   type="radio"
                   name="unit"
                   value="kg"
                   checked={unitPreference === 'kg'}
                   onChange={(e) => setUnitPreference(e.target.value as 'kg')}
-                  className="mr-2"
+                  className="sr-only"
                 />
                 Kilograms (kg)
               </label>
@@ -114,52 +127,80 @@ const WorkoutInput: React.FC = () => {
           </div>
 
           {/* Sample Workouts */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Sample Workouts
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              📝 Quick Start Templates
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <button
                 onClick={() => loadSample(0)}
-                className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                className="p-4 text-left bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all duration-200"
               >
-                Strength Training
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="text-blue-600">🏋️</span>
+                  <span className="font-medium text-blue-900">Strength Training</span>
+                </div>
+                <p className="text-xs text-blue-700">Classic powerlifting movements</p>
               </button>
               <button
                 onClick={() => loadSample(1)}
-                className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
+                className="p-4 text-left bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg hover:from-green-100 hover:to-green-200 transition-all duration-200"
               >
-                Bodyweight
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="text-green-600">🤸</span>
+                  <span className="font-medium text-green-900">Bodyweight</span>
+                </div>
+                <p className="text-xs text-green-700">No equipment needed</p>
               </button>
               <button
                 onClick={() => loadSample(2)}
-                className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                className="p-4 text-left bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg hover:from-purple-100 hover:to-purple-200 transition-all duration-200"
               >
-                Hypertrophy
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="text-purple-600">💪</span>
+                  <span className="font-medium text-purple-900">Hypertrophy</span>
+                </div>
+                <p className="text-xs text-purple-700">Volume-focused training</p>
               </button>
             </div>
           </div>
 
           {/* Workout Input */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Workout Text
+          <div className="mb-8">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              ✍️ Workout Text
             </label>
-            <textarea
-              value={workoutText}
-              onChange={(e) => setWorkoutText(e.target.value)}
-              placeholder={`Enter your workout, one exercise per line:
+            <div className="relative">
+              <textarea
+                value={workoutText}
+                onChange={(e) => setWorkoutText(e.target.value)}
+                placeholder={`Enter your workout, one exercise per line:
 
 Bench Press 3x5x135
 Squat 5x5x225
 Pull-ups 3x8 bw
 Push-ups 12 10 8`}
-              className="w-full h-40 p-3 border border-gray-300 rounded-md font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isLoading}
-            />
-            <p className="mt-2 text-sm text-gray-500">
-              Format: Exercise name, then sets×reps×weight (e.g., "Bench Press 3x5x135") or reps only for bodyweight
-            </p>
+                className={`w-full h-48 p-4 border-2 rounded-lg font-mono text-sm transition-all duration-200 ${
+                  workoutText.trim() 
+                    ? 'border-blue-300 bg-blue-50/30' 
+                    : 'border-gray-200 hover:border-gray-300'
+                } focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none`}
+                disabled={isLoading}
+              />
+              {workoutText.trim() && (
+                <div className="absolute top-2 right-2 text-xs text-gray-500 bg-white px-2 py-1 rounded border">
+                  {workoutText.split('\n').filter(line => line.trim()).length} lines
+                </div>
+              )}
+            </div>
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-600 flex items-start space-x-2">
+                <span className="text-gray-400">💡</span>
+                <span>
+                  <strong>Format:</strong> Exercise name, then sets×reps×weight (e.g., "Bench Press 3x5x135") or reps only for bodyweight exercises
+                </span>
+              </p>
+            </div>
           </div>
 
           {/* Actions */}

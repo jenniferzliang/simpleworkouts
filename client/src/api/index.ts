@@ -13,14 +13,33 @@ class ApiError extends Error {
   }
 }
 
+// Token management
+let authToken: string | null = localStorage.getItem('authToken');
+
+const setAuthToken = (token: string | null) => {
+  authToken = token;
+  if (token) {
+    localStorage.setItem('authToken', token);
+  } else {
+    localStorage.removeItem('authToken');
+  }
+};
+
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options?.headers,
+  };
+
+  // Add auth token if available
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
   const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
     ...options,
+    headers,
   });
 
   if (!response.ok) {
@@ -32,6 +51,88 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 }
 
 export const api = {
+  // Authentication
+  login: async (email: string, password: string): Promise<{
+    message: string;
+    token: string;
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      unitPreference: 'kg' | 'lb';
+      timezone: string;
+    };
+  }> => {
+    const result = await fetchApi('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    setAuthToken(result.token);
+    return result;
+  },
+
+  register: async (userData: {
+    email: string;
+    password: string;
+    name?: string;
+    unitPreference?: 'kg' | 'lb';
+  }): Promise<{
+    message: string;
+    token: string;
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      unitPreference: 'kg' | 'lb';
+      timezone: string;
+    };
+  }> => {
+    const result = await fetchApi('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+    setAuthToken(result.token);
+    return result;
+  },
+
+  getCurrentUser: async (): Promise<{
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      unitPreference: 'kg' | 'lb';
+      timezone: string;
+      createdAt: string;
+    };
+  }> => {
+    return fetchApi('/auth/me');
+  },
+
+  updateProfile: async (userData: {
+    name?: string;
+    unitPreference?: 'kg' | 'lb';
+    timezone?: string;
+  }): Promise<{
+    message: string;
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      unitPreference: 'kg' | 'lb';
+      timezone: string;
+    };
+  }> => {
+    return fetchApi('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    });
+  },
+
+  logout: () => {
+    setAuthToken(null);
+  },
+
+  getAuthToken: () => authToken,
   // Parse workout text
   parseWorkout: async (text: string, unitPreference: 'kg' | 'lb' = 'lb'): Promise<ParseResult> => {
     return fetchApi('/parse', {
