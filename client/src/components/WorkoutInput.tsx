@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../api/index.ts';
 import { ParseResult, ParsedExercise, ParseWarning } from '../types/index.ts';
+import { useAuth } from '../contexts/AuthContext.tsx';
 import ParsePreview from './ParsePreview.tsx';
 
 const SAMPLE_WORKOUTS = [
@@ -21,8 +22,9 @@ DB Row 12x30lb 12x30lb 10x30lb`
 ];
 
 const WorkoutInput: React.FC = () => {
+  const { user } = useAuth();
   const [workoutText, setWorkoutText] = useState('');
-  const [unitPreference, setUnitPreference] = useState<'kg' | 'lb'>('lb');
+  const [unitPreference, setUnitPreference] = useState<'kg' | 'lb'>(user?.unitPreference || 'lb');
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
