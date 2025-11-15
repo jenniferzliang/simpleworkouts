@@ -1,50 +1,30 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../api/index.ts';
-import { WorkoutSessionSummary } from '../types/index.ts';
+import React, { useState, useEffect } from 'react';
+import { getSessions, getSession, WorkoutSession } from '../utils/localStorage.ts';
 
 const SessionHistory: React.FC = () => {
-  const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
+  const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
 
-  // Fetch sessions list
-  const { 
-    data: sessionsData, 
-    isLoading, 
-    error 
-  } = useQuery({
-    queryKey: ['sessions'],
-    queryFn: () => api.getSessions({ limit: 50 }),
-  });
-
-  // Fetch selected session detail
-  const { 
-    data: sessionDetail,
-    isLoading: isLoadingDetail 
-  } = useQuery({
-    queryKey: ['session', selectedSession],
-    queryFn: () => selectedSession ? api.getSession(selectedSession) : null,
-    enabled: !!selectedSession,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="text-center">Loading sessions...</div>
-      </div>
+  // Load sessions from local storage
+  useEffect(() => {
+    const loadedSessions = getSessions();
+    // Sort by date descending
+    const sorted = loadedSessions.sort((a, b) =>
+      b.performedDate.localeCompare(a.performedDate)
     );
-  }
+    setSessions(sorted);
+  }, []);
 
-  if (error) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="text-center text-red-600">
-          Failed to load sessions: {error.message}
-        </div>
-      </div>
-    );
-  }
-
-  const sessions = sessionsData?.sessions || [];
+  // Load selected session detail
+  useEffect(() => {
+    if (selectedSessionId) {
+      const session = getSession(selectedSessionId);
+      setSelectedSession(session);
+    } else {
+      setSelectedSession(null);
+    }
+  }, [selectedSessionId]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
@@ -69,10 +49,10 @@ const SessionHistory: React.FC = () => {
               <div className="divide-y divide-gray-200">
                 {sessions.map((session) => (
                   <SessionCard
-                    key={session.id}
+                    key={session.sessionId}
                     session={session}
-                    isSelected={selectedSession === session.id}
-                    onClick={() => setSelectedSession(session.id)}
+                    isSelected={selectedSessionId === session.sessionId}
+                    onClick={() => setSelectedSessionId(session.sessionId)}
                   />
                 ))}
               </div>
@@ -92,16 +72,8 @@ const SessionHistory: React.FC = () => {
               <div className="text-center text-gray-500 py-8">
                 Select a session to view details
               </div>
-            ) : isLoadingDetail ? (
-              <div className="text-center text-gray-500 py-8">
-                Loading session details...
-              </div>
-            ) : sessionDetail ? (
-              <SessionDetail session={sessionDetail} />
             ) : (
-              <div className="text-center text-red-500 py-8">
-                Failed to load session details
-              </div>
+              <SessionDetail session={selectedSession} />
             )}
           </div>
         </div>
@@ -111,7 +83,7 @@ const SessionHistory: React.FC = () => {
 };
 
 const SessionCard: React.FC<{
-  session: WorkoutSessionSummary;
+  session: WorkoutSession;
   isSelected: boolean;
   onClick: () => void;
 }> = ({ session, isSelected, onClick }) => {
@@ -136,25 +108,25 @@ const SessionCard: React.FC<{
           {formatDate(session.performedDate)}
         </div>
         <div className="text-sm text-gray-500">
-          {session.totals.tonnage.toFixed(1)} lbs
+          {session.totalTonnage.toFixed(1)} lbs
         </div>
       </div>
-      
+
       <div className="text-xs text-gray-600 mb-2 line-clamp-2">
         {session.sourceText}
       </div>
-      
+
       <div className="flex justify-between text-xs text-gray-500">
-        <span>{session.totals.sets} sets • {session.totals.reps} reps</span>
-        {session.totals.bwReps > 0 && (
-          <span>{session.totals.bwReps} BW reps</span>
+        <span>{session.totalSets} sets • {session.totalReps} reps</span>
+        {session.totalBwReps > 0 && (
+          <span>{session.totalBwReps} BW reps</span>
         )}
       </div>
     </div>
   );
 };
 
-const SessionDetail: React.FC<{ session: any }> = ({ session }) => {
+const SessionDetail: React.FC<{ session: WorkoutSession }> = ({ session }) => {
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -179,19 +151,19 @@ const SessionDetail: React.FC<{ session: any }> = ({ session }) => {
         <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-lg text-sm">
           <div>
             <span className="text-gray-600">Total Tonnage:</span>
-            <div className="font-medium">{session.totals.tonnage.toFixed(1)} lbs</div>
+            <div className="font-medium">{session.totalTonnage.toFixed(1)} lbs</div>
           </div>
           <div>
             <span className="text-gray-600">Total Sets:</span>
-            <div className="font-medium">{session.totals.sets}</div>
+            <div className="font-medium">{session.totalSets}</div>
           </div>
           <div>
             <span className="text-gray-600">Total Reps:</span>
-            <div className="font-medium">{session.totals.reps}</div>
+            <div className="font-medium">{session.totalReps}</div>
           </div>
           <div>
             <span className="text-gray-600">BW Reps:</span>
-            <div className="font-medium">{session.totals.bwReps}</div>
+            <div className="font-medium">{session.totalBwReps}</div>
           </div>
         </div>
       </div>
@@ -212,20 +184,20 @@ const SessionDetail: React.FC<{ session: any }> = ({ session }) => {
           Exercises ({session.exercises.length})
         </h4>
         <div className="space-y-3">
-          {session.exercises.map((exercise: any) => (
-            <div key={exercise.id} className="border border-gray-200 rounded p-3">
+          {session.exercises.map((exercise) => (
+            <div key={exercise.exerciseId} className="border border-gray-200 rounded p-3">
               <div className="flex justify-between items-start mb-2">
                 <h5 className="font-medium text-gray-900">
-                  {exercise.exercise.name}
+                  {exercise.exerciseName}
                 </h5>
                 <span className="text-xs text-gray-500">
                   {exercise.sets.length} sets
                 </span>
               </div>
-              
+
               {/* Sets */}
               <div className="space-y-1">
-                {exercise.sets.map((set: any, index: number) => (
+                {exercise.sets.map((set, index) => (
                   <div key={index} className="flex justify-between text-sm">
                     <span className="text-gray-600">
                       Set {set.setNumber}: {set.reps} reps
@@ -242,15 +214,15 @@ const SessionDetail: React.FC<{ session: any }> = ({ session }) => {
                   </div>
                 ))}
               </div>
-              
+
               {/* Exercise Totals */}
               <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
-                {exercise.totals.tonnage > 0 && (
-                  <span>{exercise.totals.tonnage.toFixed(1)} lbs • </span>
+                {exercise.totalTonnage > 0 && (
+                  <span>{exercise.totalTonnage.toFixed(1)} lbs • </span>
                 )}
-                {exercise.totals.reps} total reps
-                {exercise.totals.bwReps > 0 && (
-                  <span> • {exercise.totals.bwReps} BW reps</span>
+                {exercise.totalReps} total reps
+                {exercise.totalBwReps > 0 && (
+                  <span> • {exercise.totalBwReps} BW reps</span>
                 )}
               </div>
             </div>

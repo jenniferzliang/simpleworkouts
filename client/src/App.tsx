@@ -1,13 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
 import WorkoutInput from './components/WorkoutInput.tsx';
 import SessionHistory from './components/SessionHistory.tsx';
 import Analytics from './components/Analytics.tsx';
 import UserSettings from './components/UserSettings.tsx';
-import Login from './components/Login.tsx';
-import Register from './components/Register.tsx';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -37,9 +34,7 @@ const NavLink: React.FC<{ to: string; label: string }> = ({ to, label }) => {
   );
 };
 
-const AuthenticatedApp: React.FC = () => {
-  const { user, logout } = useAuth();
-
+const MainApp: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
@@ -55,20 +50,7 @@ const AuthenticatedApp: React.FC = () => {
               <NavLink to="/" label="Log Workout" />
               <NavLink to="/history" label="History" />
               <NavLink to="/analytics" label="Analytics" />
-              <div className="flex items-center space-x-3 ml-6 pl-6 border-l border-gray-200">
-                <Link 
-                  to="/settings"
-                  className="text-sm text-gray-600 hover:text-blue-600 transition-colors font-medium"
-                >
-                  {user?.name || user?.email}
-                </Link>
-                <button
-                  onClick={logout}
-                  className="text-gray-500 hover:text-red-600 px-3 py-2 text-sm font-medium transition-colors rounded-md hover:bg-red-50"
-                >
-                  Sign out
-                </button>
-              </div>
+              <NavLink to="/settings" label="Settings" />
             </div>
           </div>
         </div>
@@ -87,61 +69,12 @@ const AuthenticatedApp: React.FC = () => {
   );
 };
 
-const UnauthenticatedApp: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true);
-  const { login } = useAuth();
-
-  const handleAuthSuccess = (user: any, token: string) => {
-    login(user, token);
-  };
-
-  return (
-    <>
-      {isLogin ? (
-        <Login 
-          onSuccess={handleAuthSuccess}
-          onSwitchToRegister={() => setIsLogin(false)}
-        />
-      ) : (
-        <Register 
-          onSuccess={handleAuthSuccess}
-          onSwitchToLogin={() => setIsLogin(true)}
-        />
-      )}
-    </>
-  );
-};
-
-const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="text-4xl mb-4">💪</div>
-          <div className="text-xl font-semibold text-gray-900 mb-2">
-            Simple Workouts
-          </div>
-          <div className="text-gray-600">Loading...</div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <Router>
-      {isAuthenticated ? <AuthenticatedApp /> : <UnauthenticatedApp />}
-    </Router>
-  );
-};
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <Router>
+        <MainApp />
+      </Router>
     </QueryClientProvider>
   );
 }

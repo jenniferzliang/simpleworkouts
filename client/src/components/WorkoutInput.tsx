@@ -1,8 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { api } from '../api/index.ts';
-import { ParseResult, ParsedExercise, ParseWarning } from '../types/index.ts';
-import { useAuth } from '../contexts/AuthContext.tsx';
+import { getSettings, createSession, WorkoutExercise } from '../utils/localStorage.ts';
+import { WorkoutParser, type ParseResult } from '../utils/workoutParser.ts';
 import ParsePreview from './ParsePreview.tsx';
 
 const SAMPLE_WORKOUTS = [
@@ -22,51 +20,85 @@ DB Row 12x30lb 12x30lb 10x30lb`
 ];
 
 const WorkoutInput: React.FC = () => {
-  const { user } = useAuth();
+  const settings = getSettings();
   const [workoutText, setWorkoutText] = useState('');
-  const [unitPreference, setUnitPreference] = useState<'kg' | 'lb'>(user?.unitPreference || 'lb');
+  const [unitPreference, setUnitPreference] = useState<'kg' | 'lb'>(settings.unitPreference);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  // Parse mutation
-  const parseMutation = useMutation({
-    mutationFn: ({ text, unit }: { text: string; unit: 'kg' | 'lb' }) => 
-      api.parseWorkout(text, unit),
-    onSuccess: (data) => {
-      setParseResult(data);
-      setShowPreview(true);
-    },
-    onError: (error) => {
-      console.error('Parse error:', error);
-    }
-  });
+  const [isParsing, setIsParsing] = useState(false);
 
-  // Save session mutation
-  const saveMutation = useMutation({
-    mutationFn: (data: { text: string; parsed: ParseResult; notes?: string }) =>
-      api.createSession(data),
-    onSuccess: (data) => {
-      // Show success message and reset
-      alert(`Workout saved! Total tonnage: ${data.totals.tonnage}lbs`);
+  // Save to local storage
+  const handleSaveToLocalStorage = useCallback(() => {
+    if (!parseResult) return;
+
+    try {
+      // Convert parsed exercises to our local storage format
+      const exercises: WorkoutExercise[] = parseResult.exercises.map((ex, idx) => ({
+        exerciseId: ex.exercise.name.toLowerCase().replace(/\s+/g, '-'),
+        exerciseName: ex.exercise.name,
+        sequence: idx,
+        sets: ex.sets.map((set, setIdx) => ({
+          setNumber: setIdx + 1,
+          reps: set.reps,
+          weight: set.weight,
+          unit: set.unit,
+          isBodyweight: set.isBodyweight
+        })),
+        totalSets: ex.sets.length,
+        totalReps: ex.sets.reduce((sum, set) => sum + set.reps, 0),
+        totalTonnage: ex.sets.reduce((sum, set) => {
+          if (set.isBodyweight || !set.weight) return sum;
+          return sum + (set.weight * set.reps);
+        }, 0),
+        totalBwReps: ex.sets.reduce((sum, set) => set.isBodyweight ? sum + set.reps : sum, 0)
+      }));
+
+      // Calculate session totals
+      const totalSets = exercises.reduce((sum, ex) => sum + ex.totalSets, 0);
+      const totalReps = exercises.reduce((sum, ex) => sum + ex.totalReps, 0);
+      const totalTonnage = exercises.reduce((sum, ex) => sum + ex.totalTonnage, 0);
+      const totalBwReps = exercises.reduce((sum, ex) => sum + ex.totalBwReps, 0);
+
+      // Create session
+      const now = new Date();
+      const session = createSession({
+        performedDate: now.toISOString().split('T')[0],
+        performedAtLocal: now.toISOString(),
+        sourceText: workoutText,
+        exercises,
+        totalSets,
+        totalReps,
+        totalTonnage,
+        totalBwReps
+      });
+
+      alert(`Workout saved! Total tonnage: ${totalTonnage.toFixed(1)}${unitPreference}`);
       setWorkoutText('');
       setParseResult(null);
       setShowPreview(false);
-    },
-    onError: (error) => {
+    } catch (error) {
       console.error('Save error:', error);
       alert('Failed to save workout. Please try again.');
     }
-  });
+  }, [parseResult, workoutText, unitPreference]);
 
   const handleParse = useCallback(() => {
     if (!workoutText.trim()) return;
-    parseMutation.mutate({ text: workoutText, unit: unitPreference });
-  }, [workoutText, unitPreference, parseMutation]);
 
-  const handleSave = useCallback(() => {
-    if (!parseResult) return;
-    saveMutation.mutate({ text: workoutText, parsed: parseResult });
-  }, [workoutText, parseResult, saveMutation]);
+    setIsParsing(true);
+    try {
+      const parser = new WorkoutParser();
+      const result = parser.parseWorkoutText(workoutText, unitPreference);
+      setParseResult(result);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Parse error:', error);
+      alert('Failed to parse workout. Please check your format.');
+    } finally {
+      setIsParsing(false);
+    }
+  }, [workoutText, unitPreference]);
 
   const loadSample = (index: number) => {
     setWorkoutText(SAMPLE_WORKOUTS[index]);
@@ -74,7 +106,7 @@ const WorkoutInput: React.FC = () => {
     setParseResult(null);
   };
 
-  const isLoading = parseMutation.isPending || saveMutation.isPending;
+  const isLoading = isParsing;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -212,26 +244,31 @@ Push-ups 12 10 8`}
               disabled={!workoutText.trim() || isLoading}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {parseMutation.isPending ? 'Parsing...' : 'Parse Workout'}
+              {isParsing ? 'Parsing...' : 'Parse Workout'}
             </button>
             
             {showPreview && parseResult && (
               <button
-                onClick={handleSave}
+                onClick={handleSaveToLocalStorage}
                 disabled={isLoading || parseResult.exercises.length === 0}
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saveMutation.isPending ? 'Saving...' : 'Save Workout'}
+                Save Workout
               </button>
             )}
           </div>
 
-          {/* Error Display */}
-          {parseMutation.isError && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-800">
-                Failed to parse workout: {parseMutation.error?.message}
-              </p>
+          {/* Warnings Display */}
+          {parseResult && parseResult.warnings.length > 0 && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-yellow-800 font-medium mb-2">Warnings:</p>
+              <ul className="list-disc list-inside text-yellow-700 text-sm space-y-1">
+                {parseResult.warnings.map((warning, idx) => (
+                  <li key={idx}>
+                    Line {warning.line}: {warning.message}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

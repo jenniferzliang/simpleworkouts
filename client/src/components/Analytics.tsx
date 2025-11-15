@@ -1,38 +1,89 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../api/index.ts';
-import { AnalyticsData, WeeklyTonnage } from '../types/index.ts';
+import React, { useState, useMemo } from 'react';
+import { getSessions } from '../utils/localStorage.ts';
+
+interface WeeklyData {
+  weekStart: string;
+  weekEnd: string;
+  tonnage: number;
+  sessions: number;
+  sets: number;
+  reps: number;
+  bwReps: number;
+}
 
 const Analytics: React.FC = () => {
   const [timeRange, setTimeRange] = useState('12w');
 
-  // Fetch analytics data
-  const { 
-    data: analyticsData, 
-    isLoading, 
-    error 
-  } = useQuery({
-    queryKey: ['analytics', 'weekly-tonnage', timeRange],
-    queryFn: () => api.getWeeklyTonnage({ range: timeRange }),
-  });
+  // Calculate analytics from local storage
+  const analyticsData = useMemo(() => {
+    const sessions = getSessions();
+    const weeks = parseInt(timeRange);
 
-  if (isLoading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="text-center">Loading analytics...</div>
-      </div>
-    );
-  }
+    // Get start date (N weeks ago)
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (weeks * 7));
 
-  if (error) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="text-center text-red-600">
-          Failed to load analytics: {error.message}
-        </div>
-      </div>
+    // Filter sessions within range
+    const filteredSessions = sessions.filter(s => {
+      const sessionDate = new Date(s.performedDate);
+      return sessionDate >= startDate;
+    });
+
+    // Group by week
+    const weekMap = new Map<string, WeeklyData>();
+
+    filteredSessions.forEach(session => {
+      const sessionDate = new Date(session.performedDate);
+      // Get Sunday of the week
+      const weekStart = new Date(sessionDate);
+      weekStart.setDate(sessionDate.getDate() - sessionDate.getDay());
+      const weekStartKey = weekStart.toISOString().split('T')[0];
+
+      // Get Saturday of the week
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      const weekEndKey = weekEnd.toISOString().split('T')[0];
+
+      if (!weekMap.has(weekStartKey)) {
+        weekMap.set(weekStartKey, {
+          weekStart: weekStartKey,
+          weekEnd: weekEndKey,
+          tonnage: 0,
+          sessions: 0,
+          sets: 0,
+          reps: 0,
+          bwReps: 0
+        });
+      }
+
+      const week = weekMap.get(weekStartKey)!;
+      week.tonnage += session.totalTonnage;
+      week.sessions += 1;
+      week.sets += session.totalSets;
+      week.reps += session.totalReps;
+      week.bwReps += session.totalBwReps;
+    });
+
+    const data = Array.from(weekMap.values()).sort((a, b) =>
+      a.weekStart.localeCompare(b.weekStart)
     );
-  }
+
+    const totalTonnage = data.reduce((sum, week) => sum + week.tonnage, 0);
+    const totalSessions = filteredSessions.length;
+    const avgWeeklyTonnage = data.length > 0 ? totalTonnage / data.length : 0;
+
+    return {
+      data,
+      summary: {
+        totalSessions,
+        totalTonnage,
+        avgWeeklyTonnage
+      },
+      range: {
+        weeks
+      }
+    };
+  }, [timeRange]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -114,7 +165,7 @@ const StatCard: React.FC<{
   );
 };
 
-const WeeklyTonnageChart: React.FC<{ data: WeeklyTonnage[] }> = ({ data }) => {
+const WeeklyTonnageChart: React.FC<{ data: WeeklyData[] }> = ({ data }) => {
   if (data.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -171,7 +222,7 @@ const WeeklyTonnageChart: React.FC<{ data: WeeklyTonnage[] }> = ({ data }) => {
   );
 };
 
-const WeeklyDataTable: React.FC<{ data: WeeklyTonnage[] }> = ({ data }) => {
+const WeeklyDataTable: React.FC<{ data: WeeklyData[] }> = ({ data }) => {
   if (data.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">

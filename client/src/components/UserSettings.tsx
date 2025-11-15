@@ -1,40 +1,15 @@
 import React, { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { useAuth } from '../contexts/AuthContext.tsx';
+import { getSettings, updateSettings, clearAllData } from '../utils/localStorage.ts';
 
 const UserSettings: React.FC = () => {
-  const { user, token, updateUser } = useAuth();
+  const settings = getSettings();
   const [formData, setFormData] = useState({
-    name: user?.name || '',
-    unitPreference: user?.unitPreference || 'lb',
-    timezone: user?.timezone || 'America/New_York'
+    name: settings.name || '',
+    unitPreference: settings.unitPreference || 'lb',
+    timezone: settings.timezone || 'America/New_York'
   });
-
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const response = await fetch('/api/auth/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Update failed');
-      }
-
-      return response.json();
-    },
-    onSuccess: (data) => {
-      updateUser(data.user);
-    },
-    onError: (error) => {
-      console.error('Update error:', error);
-    }
-  });
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -43,13 +18,29 @@ const UserSettings: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfileMutation.mutate(formData);
+    try {
+      updateSettings(formData);
+      setSaveSuccess(true);
+      setSaveError('');
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      setSaveError('Failed to save settings');
+      console.error('Save error:', error);
+    }
+  };
+
+  const handleClearData = () => {
+    if (window.confirm('Are you sure you want to clear all workout data? This cannot be undone.')) {
+      clearAllData();
+      alert('All data has been cleared');
+      window.location.reload();
+    }
   };
 
   const hasChanges = JSON.stringify(formData) !== JSON.stringify({
-    name: user?.name || '',
-    unitPreference: user?.unitPreference || 'lb',
-    timezone: user?.timezone || 'America/New_York'
+    name: settings.name || '',
+    unitPreference: settings.unitPreference || 'lb',
+    timezone: settings.timezone || 'America/New_York'
   });
 
   return (
@@ -70,10 +61,10 @@ const UserSettings: React.FC = () => {
             <div className="flex items-center space-x-3">
               <div className="text-2xl">👤</div>
               <div>
-                <h3 className="font-medium text-blue-900">Account</h3>
-                <p className="text-sm text-blue-700">{user?.email}</p>
+                <h3 className="font-medium text-blue-900">Local Storage</h3>
+                <p className="text-sm text-blue-700">Your data is stored locally in your browser</p>
                 <p className="text-xs text-blue-600">
-                  Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'recently'}
+                  All workout data is private and never leaves your device
                 </p>
               </div>
             </div>
@@ -92,7 +83,6 @@ const UserSettings: React.FC = () => {
                 onChange={handleChange}
                 className="block w-full px-4 py-3 border border-gray-300 rounded-lg placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 placeholder="Your name (optional)"
-                disabled={updateProfileMutation.isPending}
               />
             </div>
 
@@ -106,7 +96,6 @@ const UserSettings: React.FC = () => {
                 value={formData.unitPreference}
                 onChange={handleChange}
                 className="block w-full px-4 py-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                disabled={updateProfileMutation.isPending}
               >
                 <option value="lb">Pounds (lb)</option>
                 <option value="kg">Kilograms (kg)</option>
@@ -126,7 +115,6 @@ const UserSettings: React.FC = () => {
                 value={formData.timezone}
                 onChange={handleChange}
                 className="block w-full px-4 py-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                disabled={updateProfileMutation.isPending}
               >
                 <option value="America/New_York">Eastern Time (EST/EDT)</option>
                 <option value="America/Chicago">Central Time (CST/CDT)</option>
@@ -142,21 +130,19 @@ const UserSettings: React.FC = () => {
               </p>
             </div>
 
-            {updateProfileMutation.isError && (
+            {saveError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-start space-x-3">
                   <span className="text-red-500 text-lg">❌</span>
                   <div>
                     <h4 className="text-red-800 font-medium mb-1">Update failed</h4>
-                    <p className="text-red-700 text-sm">
-                      {updateProfileMutation.error?.message}
-                    </p>
+                    <p className="text-red-700 text-sm">{saveError}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {updateProfileMutation.isSuccess && (
+            {saveSuccess && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <div className="flex items-start space-x-3">
                   <span className="text-green-500 text-lg">✅</span>
@@ -170,28 +156,30 @@ const UserSettings: React.FC = () => {
               </div>
             )}
 
-            <div className="flex space-x-4">
+            <div className="space-y-4">
               <button
                 type="submit"
-                disabled={updateProfileMutation.isPending || !hasChanges}
-                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
-                  updateProfileMutation.isPending || !hasChanges
+                disabled={!hasChanges}
+                className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+                  !hasChanges
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5'
                 }`}
               >
                 <div className="flex items-center justify-center space-x-2">
-                  {updateProfileMutation.isPending ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>💾</span>
-                      <span>Save Changes</span>
-                    </>
-                  )}
+                  <span>💾</span>
+                  <span>Save Changes</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearData}
+                className="w-full py-3 px-4 rounded-lg font-medium bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-all duration-200"
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <span>🗑️</span>
+                  <span>Clear All Data</span>
                 </div>
               </button>
             </div>
