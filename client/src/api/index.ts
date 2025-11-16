@@ -1,6 +1,6 @@
 // API client for the workout logger
 
-import { ParseResult, WorkoutSessionSummary, WorkoutSessionDetail, AnalyticsData } from '../types/index.ts';
+import { ParseResult, WorkoutSessionSummary, WorkoutSessionDetail, AnalyticsData } from '../types/index';
 
 const API_BASE = process.env.NODE_ENV === 'production' 
   ? '/api' 

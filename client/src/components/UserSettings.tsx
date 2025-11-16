@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getSettings, updateSettings, clearAllData } from '../utils/localStorage.ts';
+import { getSettings, updateSettings, clearAllData } from '../utils/localStorage';
 
 const UserSettings: React.FC = () => {
   const settings = getSettings();

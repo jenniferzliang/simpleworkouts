@@ -1,5 +1,5 @@
 import React from 'react';
-import { ParseResult, ParsedExercise, ParseWarning, WorkoutSet } from '../types/index.ts';
+import { ParseResult, ParsedExercise, ParseWarning, WorkoutSet } from '../types/index';
 
 interface ParsePreviewProps {
   parseResult: ParseResult;

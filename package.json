@@ -11,10 +11,16 @@
     "start": "cd server && npm start",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install"
   },
-  "keywords": ["workout", "fitness", "logging", "mern"],
+  "keywords": [
+    "workout",
+    "fitness",
+    "logging",
+    "mern"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "concurrently": "^8.2.2"
   }
 }

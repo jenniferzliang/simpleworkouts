@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getSessions, getSession, WorkoutSession } from '../utils/localStorage.ts';
+import { getSessions, getSession, WorkoutSession } from '../utils/localStorage';
 
 const SessionHistory: React.FC = () => {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);

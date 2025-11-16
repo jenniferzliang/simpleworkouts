@@ -1,10 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import WorkoutInput from './components/WorkoutInput.tsx';
-import SessionHistory from './components/SessionHistory.tsx';
-import Analytics from './components/Analytics.tsx';
-import UserSettings from './components/UserSettings.tsx';
+import WorkoutInput from './components/WorkoutInput';
+import SessionHistory from './components/SessionHistory';
+import Analytics from './components/Analytics';
+import UserSettings from './components/UserSettings';
 import './App.css';
 
 const queryClient = new QueryClient({

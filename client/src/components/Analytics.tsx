@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { getSessions } from '../utils/localStorage.ts';
+import { getSessions } from '../utils/localStorage';
 
 interface WeeklyData {
   weekStart: string;

@@ -26,7 +26,6 @@ app.get('/api/health', (req, res) => {
 
 // Import route files
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/parse', require('./routes/parse'));
 app.use('/api/sessions', require('./routes/sessions'));
 app.use('/api/analytics', require('./routes/analytics'));
 

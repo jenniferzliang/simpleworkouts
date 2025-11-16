@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { getSettings, createSession, WorkoutExercise } from '../utils/localStorage.ts';
-import { WorkoutParser, type ParseResult } from '../utils/workoutParser.ts';
-import ParsePreview from './ParsePreview.tsx';
+import { getSettings, createSession, WorkoutExercise } from '../utils/localStorage';
+import { WorkoutParser, type ParseResult } from '../utils/workoutParser';
+import ParsePreview from './ParsePreview';
 
 const SAMPLE_WORKOUTS = [
   `Bench Press 3x5x135
