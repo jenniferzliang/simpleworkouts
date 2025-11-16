@@ -39,11 +39,33 @@ export interface ParseResult {
   };
 }
 
+/**
+ * Represents a weight value with optional unit
+ */
+interface WeightInfo {
+  value: number | null;
+  unit: 'kg' | 'lb' | null;
+  isBodyweight: boolean;
+}
+
+/**
+ * Represents a contiguous group of tokens that form one or more sets
+ */
+interface SetGroup {
+  type: 'aggregate' | 'multi-rep' | 'single' | 'reps-only';
+  tokens: string[];
+  startIndex: number;
+  endIndex: number;
+}
+
 export class WorkoutParser {
   private warnings: ParseWarning[] = [];
   private tokens: any[] = [];
 
-  // Main parsing function
+  // ============================================================================
+  // PUBLIC API
+  // ============================================================================
+
   parseWorkoutText(text: string, unitPreference: 'kg' | 'lb' = 'lb'): ParseResult {
     const startTime = performance.now();
     this.warnings = [];
@@ -85,7 +107,10 @@ export class WorkoutParser {
     };
   }
 
-  // Parse a single line
+  // ============================================================================
+  // LINE PARSING
+  // ============================================================================
+
   private parseLine(line: string, lineNumber: number, unitPreference: 'kg' | 'lb'): ParsedExercise | null {
     const tokens = this.tokenizeLine(line);
     this.tokens.push({ line: lineNumber, tokens });
@@ -99,17 +124,17 @@ export class WorkoutParser {
       return null;
     }
 
-    // Extract exercise name (everything before the first number)
+    // Extract exercise name and set tokens
     const exerciseName = this.extractExerciseName(tokens);
     const setTokens = tokens.slice(exerciseName.split(' ').length);
 
-    // Find exercise in local database
+    // Look up exercise info
     const exercise = getExerciseByName(exerciseName);
-
-    // Determine parsing mode and parse sets
-    const mode = this.detectParsingMode(setTokens);
     const isBodyweight = exercise?.isBodyweight || false;
-    const sets = this.parseSets(setTokens, mode, unitPreference, isBodyweight);
+
+    // Identify set groups and parse them
+    const setGroups = this.identifySetGroups(setTokens);
+    const sets = this.parseSetGroups(setGroups, unitPreference, isBodyweight);
 
     if (sets.length === 0) {
       this.warnings.push({
@@ -120,7 +145,12 @@ export class WorkoutParser {
       return null;
     }
 
-    // Format exercise name (capitalize first letter of each word)
+    // Determine overall mode (aggregate if first group is aggregate, otherwise per-set or reps-only)
+    const mode = setGroups.length > 0 ?
+      (setGroups[0].type === 'aggregate' ? 'aggregate' :
+       setGroups[0].type === 'reps-only' ? 'reps-only' : 'per-set') : 'reps-only';
+
+    // Format exercise name
     const formattedName = exercise
       ? exercise.name
       : exerciseName.split(' ').map(word =>
@@ -139,7 +169,10 @@ export class WorkoutParser {
     };
   }
 
-  // Tokenize line into words/numbers
+  // ============================================================================
+  // TOKENIZATION
+  // ============================================================================
+
   private tokenizeLine(line: string): string[] {
     return line
       .toLowerCase()
@@ -150,285 +183,248 @@ export class WorkoutParser {
       .filter(token => token.length > 0);
   }
 
-  // Extract exercise name from tokens
   private extractExerciseName(tokens: string[]): string {
     const nameTokens: string[] = [];
     for (const token of tokens) {
-      // Stop when we hit a number or 'x'
-      if (/^\d/.test(token) || token === 'x') {
-        break;
-      }
+      if (/^\d/.test(token) || token === 'x') break;
       nameTokens.push(token);
     }
     return nameTokens.join(' ');
   }
 
-  // Detect parsing mode based on tokens
-  private detectParsingMode(tokens: string[]): 'aggregate' | 'per-set' | 'reps-only' {
-    const hasXPattern = tokens.includes('x');
-    const numberTokens = tokens.filter(t => /^\d/.test(t));
+  // ============================================================================
+  // SET GROUP IDENTIFICATION
+  // ============================================================================
 
-    // Check for compact aggregate pattern first: "3x5x135" becomes ['3', 'x', '5', 'x', '135']
-    // This is 3 consecutive numbers with exactly 2 'x' tokens between them
-    if (numberTokens.length === 3 && tokens.length === 5 &&
-        tokens[0] === numberTokens[0] && tokens[1] === 'x' &&
-        tokens[2] === numberTokens[1] && tokens[3] === 'x' &&
-        tokens[4] === numberTokens[2]) {
-      return 'aggregate';
-    }
+  /**
+   * Identify contiguous groups of tokens that represent sets
+   * Examples:
+   *   - "3 x 5 x 135" → [aggregate]
+   *   - "7 8 x 85 6 x 30" → [multi-rep, single]
+   *   - "3 x 5 x 135 5 x 155" → [aggregate, single]
+   *   - "12 10 8" → [reps-only]
+   */
+  private identifySetGroups(tokens: string[]): SetGroup[] {
+    const groups: SetGroup[] = [];
+    let i = 0;
 
-    // Check for multi-rep same weight pattern: "7,8x85" becomes ['7', '8', 'x', '85']
-    // Multiple numbers followed by 'x' and a weight
-    if (hasXPattern && this.hasMultiRepSameWeight(tokens)) {
-      return 'per-set';
-    }
+    while (i < tokens.length) {
+      // Try to identify a set group starting at position i
+      const group = this.identifySetGroupAt(tokens, i);
 
-    // Check for per-set pattern: multiple REPS x WEIGHT tokens
-    // This takes priority when we have 2+ separate set patterns
-    const perSetCount = this.countPerSetTokens(tokens);
-    if (hasXPattern && perSetCount >= 2) {
-      return 'per-set';
-    }
-
-    // Check for aggregate pattern: SETS x REPS (x WEIGHT optional)
-    if (hasXPattern && numberTokens.length >= 2) {
-      const xIndices = tokens.map((t, i) => t === 'x' ? i : -1).filter(i => i !== -1);
-      // SETS x REPS pattern with one 'x'
-      if (xIndices.length === 1 && numberTokens.length >= 2) {
-        return 'aggregate';
-      }
-      // Multiple 'x' but only one per-set pattern - still aggregate
-      if (xIndices.length >= 2 && perSetCount <= 1) {
-        return 'aggregate';
+      if (group) {
+        groups.push(group);
+        i = group.endIndex + 1;
+      } else {
+        i++;
       }
     }
 
-    // Default to reps-only (bodyweight)
-    return 'reps-only';
-  }
-
-  // Check for multi-rep same weight pattern: ['7', '8', 'x', '85']
-  private hasMultiRepSameWeight(tokens: string[]): boolean {
-    const xIndex = tokens.indexOf('x');
-    if (xIndex <= 1 || xIndex >= tokens.length - 1) return false;
-
-    // Check if there are 2+ numbers before 'x' and 1 number after
-    const numbersBeforeX = tokens.slice(0, xIndex).filter(t => /^\d/.test(t));
-    const numbersAfterX = tokens.slice(xIndex + 1).filter(t => /^\d/.test(t));
-
-    return numbersBeforeX.length >= 2 && numbersAfterX.length >= 1;
-  }
-
-  // Count per-set tokens (REPS x WEIGHT patterns)
-  private countPerSetTokens(tokens: string[]): number {
-    let count = 0;
-    for (let i = 0; i < tokens.length - 2; i++) {
-      if (/^\d/.test(tokens[i]) && tokens[i + 1] === 'x' && /^\d/.test(tokens[i + 2])) {
-        count++;
+    // If no groups found but we have tokens, treat as reps-only
+    if (groups.length === 0 && tokens.length > 0) {
+      const numbers = tokens.filter(t => /^\d+$/.test(t));
+      if (numbers.length > 0) {
+        groups.push({
+          type: 'reps-only',
+          tokens: tokens,
+          startIndex: 0,
+          endIndex: tokens.length - 1
+        });
       }
     }
-    return count;
+
+    return groups;
   }
 
-  // Parse sets based on mode
-  private parseSets(tokens: string[], mode: string, unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
-    // Check for mixed format: aggregate followed by per-set (e.g., "2x8x30 8x35")
-    if (this.hasMixedFormat(tokens)) {
-      return this.parseMixedSets(tokens, unitPreference, isBodyweight);
+  /**
+   * Identify what type of set group starts at the given position
+   */
+  private identifySetGroupAt(tokens: string[], startIndex: number): SetGroup | null {
+    const remaining = tokens.slice(startIndex);
+
+    // Check for aggregate pattern with weight: SETS x REPS x WEIGHT (exactly 5 tokens)
+    if (remaining.length >= 5 &&
+        this.isNumber(remaining[0]) &&
+        remaining[1] === 'x' &&
+        this.isNumber(remaining[2]) &&
+        remaining[3] === 'x' &&
+        this.isNumber(remaining[4])) {
+      return {
+        type: 'aggregate',
+        tokens: remaining.slice(0, 5),
+        startIndex,
+        endIndex: startIndex + 4
+      };
     }
 
-    switch (mode) {
+    // Check for bodyweight aggregate: SETS x REPS [bw] (only at start, 3-4 tokens, small numbers)
+    if (startIndex === 0 &&
+        remaining.length >= 3 &&
+        this.isNumber(remaining[0]) &&
+        remaining[1] === 'x' &&
+        this.isNumber(remaining[2])) {
+      const firstNum = parseFloat(remaining[0]);
+      const secondNum = parseFloat(remaining[2]);
+      const hasBwMarker = remaining.length === 4 && remaining[3] === 'bw';
+      const isJustThreeTokens = remaining.length === 3;
+
+      // Only treat as aggregate if:
+      // - Numbers look like sets x reps (sets <= 10, reps <= 100 for high-rep exercises) AND
+      // - Either exactly 3 tokens OR exactly 4 tokens with 'bw'
+      if (firstNum <= 10 && secondNum <= 100 && (isJustThreeTokens || hasBwMarker)) {
+        const tokenCount = hasBwMarker ? 4 : 3;
+        return {
+          type: 'aggregate',
+          tokens: remaining.slice(0, tokenCount),
+          startIndex,
+          endIndex: startIndex + tokenCount - 1
+        };
+      }
+    }
+
+    // Check for multi-rep pattern: REP1 REP2 ... x WEIGHT
+    const xIndex = remaining.indexOf('x');
+    if (xIndex >= 2) {
+      const numbersBeforeX = remaining.slice(0, xIndex).filter(t => this.isNumber(t));
+      const hasWeightAfterX = xIndex < remaining.length - 1 &&
+        (this.isNumber(remaining[xIndex + 1]) || remaining[xIndex + 1] === 'bw');
+
+      if (numbersBeforeX.length >= 2 && hasWeightAfterX) {
+        return {
+          type: 'multi-rep',
+          tokens: remaining.slice(0, xIndex + 2),
+          startIndex,
+          endIndex: startIndex + xIndex + 1
+        };
+      }
+    }
+
+    // Check for single set pattern: REPS x WEIGHT
+    if (remaining.length >= 3 &&
+        this.isNumber(remaining[0]) &&
+        remaining[1] === 'x' &&
+        (this.isNumber(remaining[2]) || remaining[2] === 'bw')) {
+      return {
+        type: 'single',
+        tokens: remaining.slice(0, 3),
+        startIndex,
+        endIndex: startIndex + 2
+      };
+    }
+
+    return null;
+  }
+
+  // ============================================================================
+  // SET GROUP PARSING
+  // ============================================================================
+
+  /**
+   * Parse all set groups into individual sets
+   */
+  private parseSetGroups(groups: SetGroup[], unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
+    const sets: ParsedSet[] = [];
+
+    for (const group of groups) {
+      const groupSets = this.parseSetGroup(group, unitPreference, isBodyweight);
+
+      // Renumber sets to continue from where previous groups left off
+      groupSets.forEach(set => {
+        sets.push({
+          ...set,
+          setNumber: sets.length + 1
+        });
+      });
+    }
+
+    return sets;
+  }
+
+  /**
+   * Parse a single set group into one or more sets
+   */
+  private parseSetGroup(group: SetGroup, unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
+    switch (group.type) {
       case 'aggregate':
-        return this.parseAggregateSets(tokens, unitPreference, isBodyweight);
-      case 'per-set':
-        return this.parsePerSetSets(tokens, unitPreference, isBodyweight);
+        return this.parseAggregateGroup(group.tokens, unitPreference, isBodyweight);
+      case 'multi-rep':
+        return this.parseMultiRepGroup(group.tokens, unitPreference, isBodyweight);
+      case 'single':
+        return this.parseSingleGroup(group.tokens, unitPreference, isBodyweight);
       case 'reps-only':
-        return this.parseRepsOnlySets(tokens);
+        return this.parseRepsOnlyGroup(group.tokens);
       default:
         return [];
     }
   }
 
-  // Check for mixed format: starts with aggregate (3x5x135) followed by per-set (8x155)
-  private hasMixedFormat(tokens: string[]): boolean {
-    // Must have at least 8 tokens for mixed format: ['2', 'x', '8', 'x', '30', '8', 'x', '35']
-    if (tokens.length < 8) return false;
-
-    // Check if first 5 tokens match aggregate pattern
-    const numberTokens = tokens.filter(t => /^\d/.test(t));
-    if (numberTokens.length >= 4 && tokens.length > 5 &&
-        tokens[0] === numberTokens[0] && tokens[1] === 'x' &&
-        tokens[2] === numberTokens[1] && tokens[3] === 'x' &&
-        tokens[4] === numberTokens[2]) {
-      // Check if there are additional number x number patterns after
-      const remainingTokens = tokens.slice(5);
-      return this.countPerSetTokens(remainingTokens) >= 1;
-    }
-
-    return false;
-  }
-
-  // Parse mixed format: "2x8x30 8x35" = 2 sets of 8@30 + 1 set of 8@35
-  private parseMixedSets(tokens: string[], unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
-    const sets: ParsedSet[] = [];
-
-    // Parse the aggregate part (first 5 tokens)
-    const aggregateTokens = tokens.slice(0, 5);
-    const aggregateSets = this.parseAggregateSets(aggregateTokens, unitPreference, isBodyweight);
-    sets.push(...aggregateSets);
-
-    // Parse the remaining per-set patterns
-    const remainingTokens = tokens.slice(5);
-    const perSetSets = this.parsePerSetSets(remainingTokens, unitPreference, isBodyweight);
-
-    // Renumber the per-set sets to continue from where aggregate left off
-    const startingSetNumber = sets.length + 1;
-    perSetSets.forEach((set, index) => {
-      sets.push({
-        ...set,
-        setNumber: startingSetNumber + index
-      });
-    });
-
-    return sets;
-  }
-
-  // Parse aggregate format: 3x5x135 or 3x5
-  private parseAggregateSets(tokens: string[], unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
-    const numbers = tokens.filter(t => /^\d/.test(t)).map(t => parseFloat(t));
-    const hasBodyweight = tokens.includes('bw');
+  /**
+   * Parse aggregate group: "3 x 5 x 135" → 3 sets of 5 reps @ 135
+   */
+  private parseAggregateGroup(tokens: string[], unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
+    const numbers = tokens.filter(t => this.isNumber(t)).map(t => parseFloat(t));
 
     if (numbers.length < 2) return [];
 
-    const sets = parseInt(String(numbers[0]));
-    const reps = parseInt(String(numbers[1]));
-    const weight = numbers.length >= 3 ? numbers[2] : null;
+    const numSets = Math.floor(numbers[0]);
+    const reps = Math.floor(numbers[1]);
+    const weightInfo = numbers.length >= 3
+      ? this.parseWeightInfo(tokens[tokens.length - 1], unitPreference, isBodyweight)
+      : { value: null, unit: null, isBodyweight: true };
 
-    const result: ParsedSet[] = [];
-    for (let i = 1; i <= sets; i++) {
-      result.push({
-        setNumber: i,
-        reps,
-        weight: (hasBodyweight || isBodyweight) ? null : weight,
-        unit: (hasBodyweight || isBodyweight || !weight) ? null : unitPreference,
-        isBodyweight: hasBodyweight || isBodyweight || !weight
-      });
-    }
-
-    return result;
-  }
-
-  // Parse per-set format: 10x40kg 10x45kg 8x45kg OR 7,8x85
-  private parsePerSetSets(tokens: string[], unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
     const sets: ParsedSet[] = [];
-    let startIndex = 0;
-
-    // Check for multi-rep same weight pattern at the beginning: ['7', '8', 'x', '85']
-    if (this.hasMultiRepSameWeight(tokens)) {
-      const xIndex = tokens.indexOf('x');
-      const repsTokens = tokens.slice(0, xIndex).filter(t => /^\d/.test(t));
-      const weightToken = tokens[xIndex + 1];
-
-      let weight: number | null = null;
-      let unit: 'kg' | 'lb' | null = null;
-      let isBw = false;
-
-      if (weightToken === 'bw') {
-        isBw = true;
-      } else if (/^\d/.test(weightToken)) {
-        weight = this.parseWeight(weightToken);
-        unit = this.extractUnit(weightToken) || unitPreference;
-        isBw = isBodyweight;
-      }
-
-      // Create one set for each rep count
-      repsTokens.forEach((repsToken, index) => {
-        sets.push({
-          setNumber: index + 1,
-          reps: parseInt(repsToken),
-          weight: isBw ? null : weight,
-          unit: isBw ? null : unit,
-          isBodyweight: isBw
-        });
+    for (let i = 0; i < numSets; i++) {
+      sets.push({
+        setNumber: i + 1,
+        reps,
+        weight: weightInfo.value,
+        unit: weightInfo.unit,
+        isBodyweight: weightInfo.isBodyweight
       });
-
-      // Continue parsing from after the multi-rep pattern
-      startIndex = xIndex + 2; // Skip past 'x' and weight token
-    }
-
-    // Standard per-set format: 10x135 8x155 6x175
-    let setNumber = sets.length + 1;
-    for (let i = startIndex; i < tokens.length - 2; i++) {
-      // Check if we're at the start of a multi-rep pattern (e.g., "7,8x35")
-      const remainingTokens = tokens.slice(i);
-      if (this.hasMultiRepSameWeight(remainingTokens)) {
-        // Find the 'x' in the remaining tokens
-        const xIndex = remainingTokens.indexOf('x');
-        const repsTokens = remainingTokens.slice(0, xIndex).filter(t => /^\d/.test(t));
-        const weightToken = remainingTokens[xIndex + 1];
-
-        let weight: number | null = null;
-        let unit: 'kg' | 'lb' | null = null;
-        let isBw = false;
-
-        if (weightToken === 'bw') {
-          isBw = true;
-        } else if (/^\d/.test(weightToken)) {
-          weight = this.parseWeight(weightToken);
-          unit = this.extractUnit(weightToken) || unitPreference;
-          isBw = isBodyweight;
-        }
-
-        // Create one set for each rep count
-        repsTokens.forEach((repsToken) => {
-          sets.push({
-            setNumber: setNumber++,
-            reps: parseInt(repsToken),
-            weight: isBw ? null : weight,
-            unit: isBw ? null : unit,
-            isBodyweight: isBw
-          });
-        });
-
-        // Skip past all the tokens we just processed
-        i += xIndex + 1; // Will be incremented by loop, so we end up after the weight
-        continue;
-      }
-
-      // Standard single rep x weight pattern
-      if (/^\d/.test(tokens[i]) && tokens[i + 1] === 'x') {
-        const reps = parseInt(tokens[i]);
-        const weightToken = tokens[i + 2];
-
-        let weight: number | null = null;
-        let unit: 'kg' | 'lb' | null = null;
-        let isBw = false;
-
-        if (weightToken === 'bw') {
-          isBw = true;
-        } else if (/^\d/.test(weightToken)) {
-          weight = this.parseWeight(weightToken);
-          unit = this.extractUnit(weightToken) || unitPreference;
-          isBw = isBodyweight;
-        }
-
-        sets.push({
-          setNumber: setNumber++,
-          reps,
-          weight: isBw ? null : weight,
-          unit: isBw ? null : unit,
-          isBodyweight: isBw
-        });
-
-        i += 2; // Skip the 'x' and weight tokens
-      }
     }
 
     return sets;
   }
 
-  // Parse reps-only format: 12 10 8
-  private parseRepsOnlySets(tokens: string[]): ParsedSet[] {
+  /**
+   * Parse multi-rep group: "7 8 x 85" → 2 sets (7@85, 8@85)
+   */
+  private parseMultiRepGroup(tokens: string[], unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
+    const xIndex = tokens.indexOf('x');
+    const repsTokens = tokens.slice(0, xIndex).filter(t => this.isNumber(t));
+    const weightToken = tokens[xIndex + 1];
+    const weightInfo = this.parseWeightInfo(weightToken, unitPreference, isBodyweight);
+
+    return repsTokens.map((repsToken, index) => ({
+      setNumber: index + 1,
+      reps: parseInt(repsToken),
+      weight: weightInfo.value,
+      unit: weightInfo.unit,
+      isBodyweight: weightInfo.isBodyweight
+    }));
+  }
+
+  /**
+   * Parse single set group: "10 x 135" → 1 set of 10 reps @ 135
+   */
+  private parseSingleGroup(tokens: string[], unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
+    const reps = parseInt(tokens[0]);
+    const weightToken = tokens[2];
+    const weightInfo = this.parseWeightInfo(weightToken, unitPreference, isBodyweight);
+
+    return [{
+      setNumber: 1,
+      reps,
+      weight: weightInfo.value,
+      unit: weightInfo.unit,
+      isBodyweight: weightInfo.isBodyweight
+    }];
+  }
+
+  /**
+   * Parse reps-only group: "12 10 8" → 3 sets bodyweight
+   */
+  private parseRepsOnlyGroup(tokens: string[]): ParsedSet[] {
     const repsValues = tokens.filter(t => /^\d+$/.test(t)).map(t => parseInt(t));
 
     return repsValues.map((reps, index) => ({
@@ -440,16 +436,38 @@ export class WorkoutParser {
     }));
   }
 
-  // Extract weight value from token
-  private parseWeight(token: string): number | null {
-    const match = token.match(/^(\d+(?:\.\d+)?)/);
-    return match ? parseFloat(match[1]) : null;
+  // ============================================================================
+  // HELPER METHODS
+  // ============================================================================
+
+  private isNumber(token: string): boolean {
+    return /^\d/.test(token);
   }
 
-  // Extract unit from token
-  private extractUnit(token: string): 'kg' | 'lb' | null {
-    if (token.includes('kg')) return 'kg';
-    if (token.includes('lb') || token.includes('lbs')) return 'lb';
-    return null;
+  /**
+   * Parse weight token into weight info (value, unit, isBodyweight)
+   */
+  private parseWeightInfo(token: string, unitPreference: 'kg' | 'lb', isBodyweight: boolean): WeightInfo {
+    if (token === 'bw') {
+      return { value: null, unit: null, isBodyweight: true };
+    }
+
+    const match = token.match(/^(\d+(?:\.\d+)?)/);
+    const value = match ? parseFloat(match[1]) : null;
+
+    let unit: 'kg' | 'lb' | null = null;
+    if (token.includes('kg')) {
+      unit = 'kg';
+    } else if (token.includes('lb') || token.includes('lbs')) {
+      unit = 'lb';
+    } else {
+      unit = value !== null ? unitPreference : null;
+    }
+
+    return {
+      value: isBodyweight ? null : value,
+      unit: isBodyweight ? null : unit,
+      isBodyweight: isBodyweight || value === null
+    };
   }
 }
