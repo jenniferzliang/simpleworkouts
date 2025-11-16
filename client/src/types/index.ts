@@ -1,5 +1,8 @@
 // Type definitions for the workout logger
 
+// Re-export parser types
+export type { ParsedExercise, ParsedSet, ParseWarning, ParseResult } from '../utils/workoutParser';
+
 export interface Exercise {
   id: string;
   name: string;
@@ -13,32 +16,6 @@ export interface WorkoutSet {
   weight: number | null;
   unit: 'kg' | 'lb' | null;
   isBodyweight: boolean;
-}
-
-export interface ParsedExercise {
-  exercise: Exercise;
-  sets: WorkoutSet[];
-  mode: 'aggregate' | 'per-set' | 'reps-only';
-  originalText: string;
-}
-
-export interface ParseWarning {
-  line: number;
-  message: string;
-  suggestion?: string;
-  originalText: string;
-}
-
-export interface ParseResult {
-  exercises: ParsedExercise[];
-  warnings: ParseWarning[];
-  tokens: any[];
-  metadata?: {
-    duration: number;
-    originalText: string;
-    unitPreference: 'kg' | 'lb';
-    timestamp: string;
-  };
 }
 
 export interface SessionTotals {

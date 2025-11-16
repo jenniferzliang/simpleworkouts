@@ -321,8 +321,9 @@ export class WorkoutParser {
   // Parse per-set format: 10x40kg 10x45kg 8x45kg OR 7,8x85
   private parsePerSetSets(tokens: string[], unitPreference: 'kg' | 'lb', isBodyweight: boolean): ParsedSet[] {
     const sets: ParsedSet[] = [];
+    let startIndex = 0;
 
-    // Check for multi-rep same weight pattern: ['7', '8', 'x', '85']
+    // Check for multi-rep same weight pattern at the beginning: ['7', '8', 'x', '85']
     if (this.hasMultiRepSameWeight(tokens)) {
       const xIndex = tokens.indexOf('x');
       const repsTokens = tokens.slice(0, xIndex).filter(t => /^\d/.test(t));
@@ -351,12 +352,13 @@ export class WorkoutParser {
         });
       });
 
-      return sets;
+      // Continue parsing from after the multi-rep pattern
+      startIndex = xIndex + 2; // Skip past 'x' and weight token
     }
 
     // Standard per-set format: 10x135 8x155 6x175
-    let setNumber = 1;
-    for (let i = 0; i < tokens.length - 2; i++) {
+    let setNumber = sets.length + 1;
+    for (let i = startIndex; i < tokens.length - 2; i++) {
       if (/^\d/.test(tokens[i]) && tokens[i + 1] === 'x') {
         const reps = parseInt(tokens[i]);
         const weightToken = tokens[i + 2];
