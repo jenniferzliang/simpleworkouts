@@ -132,8 +132,8 @@ export class WorkoutParser {
     const exercise = getExerciseByName(exerciseName);
     const isBodyweight = exercise?.isBodyweight || false;
 
-    // Identify set groups and parse them
-    const setGroups = this.identifySetGroups(setTokens);
+    // Identify set groups and parse them (pass isBodyweight for smarter detection)
+    const setGroups = this.identifySetGroups(setTokens, isBodyweight);
     const sets = this.parseSetGroups(setGroups, unitPreference, isBodyweight);
 
     if (sets.length === 0) {
@@ -204,18 +204,28 @@ export class WorkoutParser {
    *   - "3 x 5 x 135 5 x 155" → [aggregate, single]
    *   - "12 10 8" → [reps-only]
    */
-  private identifySetGroups(tokens: string[]): SetGroup[] {
+  private identifySetGroups(tokens: string[], isBodyweightExercise: boolean): SetGroup[] {
     const groups: SetGroup[] = [];
     let i = 0;
 
     while (i < tokens.length) {
       // Try to identify a set group starting at position i
-      const group = this.identifySetGroupAt(tokens, i);
+      const group = this.identifySetGroupAt(tokens, i, isBodyweightExercise);
 
       if (group) {
         groups.push(group);
         i = group.endIndex + 1;
       } else {
+        // No structured group found - if this is a number AND it's a bodyweight exercise,
+        // treat as single reps-only value
+        if (isBodyweightExercise && /^\d+$/.test(tokens[i])) {
+          groups.push({
+            type: 'reps-only',
+            tokens: [tokens[i]],
+            startIndex: i,
+            endIndex: i
+          });
+        }
         i++;
       }
     }
@@ -239,7 +249,7 @@ export class WorkoutParser {
   /**
    * Identify what type of set group starts at the given position
    */
-  private identifySetGroupAt(tokens: string[], startIndex: number): SetGroup | null {
+  private identifySetGroupAt(tokens: string[], startIndex: number, isBodyweightExercise: boolean): SetGroup | null {
     const remaining = tokens.slice(startIndex);
 
     // Check for aggregate pattern with weight: SETS x REPS x WEIGHT (exactly 5 tokens)
@@ -257,21 +267,32 @@ export class WorkoutParser {
       };
     }
 
-    // Check for bodyweight aggregate: SETS x REPS [bw] (only at start, 3-4 tokens, small numbers)
-    if (startIndex === 0 &&
-        remaining.length >= 3 &&
-        this.isNumber(remaining[0]) &&
+    // Check for bodyweight aggregate: SETS x REPS [bw]
+    // If we know it's a bodyweight exercise, be more permissive
+    // Important: tokens must be pure numbers (no units like "kg" or "lb")
+    if (remaining.length >= 3 &&
+        /^\d+$/.test(remaining[0]) &&
         remaining[1] === 'x' &&
-        this.isNumber(remaining[2])) {
+        /^\d+$/.test(remaining[2])) {
       const firstNum = parseFloat(remaining[0]);
       const secondNum = parseFloat(remaining[2]);
       const hasBwMarker = remaining.length === 4 && remaining[3] === 'bw';
       const isJustThreeTokens = remaining.length === 3;
 
-      // Only treat as aggregate if:
-      // - Numbers look like sets x reps (sets <= 10, reps <= 100 for high-rep exercises) AND
-      // - Either exactly 3 tokens OR exactly 4 tokens with 'bw'
-      if (firstNum <= 10 && secondNum <= 100 && (isJustThreeTokens || hasBwMarker)) {
+      // For known bodyweight exercises: always treat NUM x NUM as aggregate (at any position)
+      // For unknown/weighted exercises: use heuristic ONLY at the start (startIndex === 0)
+      // This ensures "squat 5x5" → aggregate at start, but later "6x30" → single set (weighted)
+      const looksLikeAggregate = isBodyweightExercise ||
+        (isJustThreeTokens && startIndex === 0 && firstNum <= 10 && secondNum <= 100);
+
+      // Match if it looks like aggregate AND:
+      // - Exactly 3 tokens, OR
+      // - 4 tokens with "bw" marker, OR
+      // - Bodyweight exercise with 4+ tokens where next token isn't "x" (e.g., "3x10 50")
+      const canMatch = isJustThreeTokens || hasBwMarker ||
+        (isBodyweightExercise && remaining.length > 3 && remaining[3] !== 'x');
+
+      if (looksLikeAggregate && canMatch) {
         const tokenCount = hasBwMarker ? 4 : 3;
         return {
           type: 'aggregate',
@@ -290,6 +311,16 @@ export class WorkoutParser {
         (this.isNumber(remaining[xIndex + 1]) || remaining[xIndex + 1] === 'bw');
 
       if (numbersBeforeX.length >= 2 && hasWeightAfterX) {
+        // Special case for bodyweight exercises: if we have "NUM NUM x NUM" at the start,
+        // and the second part looks like an aggregate (NUM2 x NUM3 where NUM2 <= 10),
+        // don't match multi-rep. Instead, let NUM1 be handled as reps-only.
+        if (startIndex === 0 && isBodyweightExercise && xIndex === 2 &&
+            this.isNumber(remaining[0]) && this.isNumber(remaining[1]) &&
+            parseFloat(remaining[1]) <= 10) {
+          // Skip multi-rep match, return null to let the single number be handled separately
+          return null;
+        }
+
         return {
           type: 'multi-rep',
           tokens: remaining.slice(0, xIndex + 2),

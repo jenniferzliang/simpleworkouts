@@ -2,8 +2,9 @@ import { WorkoutParser } from './workoutParser';
 import * as exerciseDatabase from './exerciseDatabase';
 
 // Mock the exercise database
-jest.mock('./exerciseDatabase', () => ({
-  getExerciseByName: jest.fn((name: string) => {
+jest.mock('./exerciseDatabase', () => {
+  const mockGetExerciseByName = (name: string) => {
+    const normalized = name.toLowerCase().trim();
     const exercises: { [key: string]: any } = {
       'bench press': { name: 'Bench Press', category: 'push', isBodyweight: false },
       'bench': { name: 'Bench Press', category: 'push', isBodyweight: false },
@@ -16,10 +17,22 @@ jest.mock('./exerciseDatabase', () => ({
       'pushups': { name: 'Push-ups', category: 'push', isBodyweight: true },
       'push-ups': { name: 'Push-ups', category: 'push', isBodyweight: true },
       'deadlift': { name: 'Deadlift', category: 'pull', isBodyweight: false },
+      'burpees': { name: 'Burpees', category: 'cardio', isBodyweight: true },
+      'burpee': { name: 'Burpees', category: 'cardio', isBodyweight: true },
+      'situps': { name: 'Sit-ups', category: 'core', isBodyweight: true },
+      'sit-ups': { name: 'Sit-ups', category: 'core', isBodyweight: true },
+      'sit ups': { name: 'Sit-ups', category: 'core', isBodyweight: true },
+      'ohp': { name: 'Overhead Press', category: 'push', isBodyweight: false },
+      'overhead press': { name: 'Overhead Press', category: 'push', isBodyweight: false },
     };
-    return exercises[name.toLowerCase().trim()] || null;
-  }),
-}));
+    return exercises[normalized] || null;
+  };
+
+  return {
+    getExerciseByName: mockGetExerciseByName,
+    __esModule: true,
+  };
+});
 
 describe('WorkoutParser', () => {
   let parser: WorkoutParser;
@@ -69,7 +82,7 @@ describe('WorkoutParser', () => {
 
     test('should stop at first number', () => {
       const result = parser.parseWorkoutText('Pull Ups 3 x 8 bw');
-      expect(result.exercises[0].exercise.name).toBe('Pull Ups');
+      expect(result.exercises[0].exercise.name).toBe('Pull-ups'); // Name comes from mock database
     });
 
     test('should stop at x token', () => {
@@ -589,6 +602,46 @@ Squat 3x5x225`;
       expect(result.exercises[0].sets[0].reps).toBe(50);
     });
 
+    test('should recognize bodyweight exercises can have very high reps', () => {
+      // Burpees is a known bodyweight exercise, so 5x200 should be aggregate
+      const result1 = parser.parseWorkoutText('Burpees 5x200');
+      expect(result1.exercises[0].sets).toHaveLength(5);
+      expect(result1.exercises[0].sets[0].reps).toBe(200);
+      expect(result1.exercises[0].sets[0].isBodyweight).toBe(true);
+
+      // Unknown exercise with same format should fall back to heuristics
+      const result2 = parser.parseWorkoutText('Mystery Exercise 5x200');
+      // 200 > 100, so it won't match aggregate heuristic, will treat as single set
+      expect(result2.exercises[0].sets).toHaveLength(1);
+      expect(result2.exercises[0].sets[0].reps).toBe(5);
+      expect(result2.exercises[0].sets[0].weight).toBe(200);
+    });
+
+    test('should parse mixed reps-only and aggregate format', () => {
+      // "situps 50 2x30" should be 3 sets: 50, 30, 30
+      const result1 = parser.parseWorkoutText('situps 50 2x30');
+      expect(result1.exercises[0].sets).toHaveLength(3);
+      expect(result1.exercises[0].sets[0].reps).toBe(50);
+      expect(result1.exercises[0].sets[1].reps).toBe(30);
+      expect(result1.exercises[0].sets[2].reps).toBe(30);
+
+      // "pushups 3x10 50" should be 3 sets: 10, 10, 10, then 1 set of 50 = 4 total
+      const result2 = parser.parseWorkoutText('pushups 3x10 50');
+      expect(result2.exercises[0].sets).toHaveLength(4);
+      expect(result2.exercises[0].sets[0].reps).toBe(10);
+      expect(result2.exercises[0].sets[1].reps).toBe(10);
+      expect(result2.exercises[0].sets[2].reps).toBe(10);
+      expect(result2.exercises[0].sets[3].reps).toBe(50);
+
+      // "pullups 20 2x10 15" should be 4 sets: 20, 10, 10, 15
+      const result3 = parser.parseWorkoutText('pullups 20 2x10 15');
+      expect(result3.exercises[0].sets).toHaveLength(4);
+      expect(result3.exercises[0].sets[0].reps).toBe(20);
+      expect(result3.exercises[0].sets[1].reps).toBe(10);
+      expect(result3.exercises[0].sets[2].reps).toBe(10);
+      expect(result3.exercises[0].sets[3].reps).toBe(15);
+    });
+
     test('should preserve tokens for debugging', () => {
       const result = parser.parseWorkoutText('Bench Press 3x5x135');
 
@@ -608,8 +661,8 @@ Squat 3x5x225`;
 
       // Verify exercises are parsed correctly
       expect(result.exercises).toHaveLength(3);
-      expect(result.exercises[0].exercise.name).toBe('Bench');
-      expect(result.exercises[1].exercise.name).toBe('Pullups');
+      expect(result.exercises[0].exercise.name).toBe('Bench Press'); // Name from mock database
+      expect(result.exercises[1].exercise.name).toBe('Pull-ups'); // Name from mock database
       expect(result.exercises[2].exercise.name).toBe('Squat');
 
       // Verify category field exists (actual value depends on exercise database integration)
