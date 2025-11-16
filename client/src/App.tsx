@@ -1,20 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import WorkoutInput from './components/WorkoutInput';
 import SessionHistory from './components/SessionHistory';
 import Analytics from './components/Analytics';
 import UserSettings from './components/UserSettings';
 import './App.css';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-});
 
 const NavLink: React.FC<{ to: string; label: string }> = ({ to, label }) => {
   const location = useLocation();
@@ -71,11 +61,9 @@ const MainApp: React.FC = () => {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <MainApp />
-      </Router>
-    </QueryClientProvider>
+    <Router>
+      <MainApp />
+    </Router>
   );
 }
 

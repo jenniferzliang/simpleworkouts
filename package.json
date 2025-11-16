@@ -1,26 +1,25 @@
 {
   "name": "simpleworkouts",
   "version": "1.0.0",
-  "description": "Fast, minimalist workout logging from free-form text",
-  "main": "index.js",
+  "description": "Fast, minimalist workout logging from free-form text - fully client-side with localStorage",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd server && npm run dev",
-    "client": "cd client && npm run dev",
+    "dev": "cd client && npm run dev",
+    "start": "cd client && npm start",
     "build": "cd client && npm run build",
-    "start": "cd server && npm start",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install"
+    "test": "cd client && npm test",
+    "install": "cd client && npm install"
   },
   "keywords": [
     "workout",
     "fitness",
     "logging",
-    "mern"
+    "react",
+    "typescript",
+    "localStorage"
   ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "concurrently": "^8.2.2"
+    "@types/jest": "^30.0.0"
   }
 }
