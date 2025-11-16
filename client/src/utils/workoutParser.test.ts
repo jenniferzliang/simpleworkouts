@@ -340,6 +340,24 @@ describe('WorkoutParser', () => {
       expect(result.exercises[0].sets[2].weight).toBe(30);
     });
 
+    test('should parse per-set followed by comma-separated reps', () => {
+      const result = parser.parseWorkoutText('ohp 6x25 7,8x35', 'lb');
+
+      expect(result.exercises[0].sets).toHaveLength(3);
+
+      // First set: 6 reps @ 25
+      expect(result.exercises[0].sets[0].reps).toBe(6);
+      expect(result.exercises[0].sets[0].weight).toBe(25);
+
+      // Second set: 7 reps @ 35
+      expect(result.exercises[0].sets[1].reps).toBe(7);
+      expect(result.exercises[0].sets[1].weight).toBe(35);
+
+      // Third set: 8 reps @ 35
+      expect(result.exercises[0].sets[2].reps).toBe(8);
+      expect(result.exercises[0].sets[2].weight).toBe(35);
+    });
+
     test('should parse mixed format: aggregate followed by per-set', () => {
       const result = parser.parseWorkoutText('Bench Press 2x8x30 8x35', 'lb');
 

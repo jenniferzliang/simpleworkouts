@@ -359,6 +359,43 @@ export class WorkoutParser {
     // Standard per-set format: 10x135 8x155 6x175
     let setNumber = sets.length + 1;
     for (let i = startIndex; i < tokens.length - 2; i++) {
+      // Check if we're at the start of a multi-rep pattern (e.g., "7,8x35")
+      const remainingTokens = tokens.slice(i);
+      if (this.hasMultiRepSameWeight(remainingTokens)) {
+        // Find the 'x' in the remaining tokens
+        const xIndex = remainingTokens.indexOf('x');
+        const repsTokens = remainingTokens.slice(0, xIndex).filter(t => /^\d/.test(t));
+        const weightToken = remainingTokens[xIndex + 1];
+
+        let weight: number | null = null;
+        let unit: 'kg' | 'lb' | null = null;
+        let isBw = false;
+
+        if (weightToken === 'bw') {
+          isBw = true;
+        } else if (/^\d/.test(weightToken)) {
+          weight = this.parseWeight(weightToken);
+          unit = this.extractUnit(weightToken) || unitPreference;
+          isBw = isBodyweight;
+        }
+
+        // Create one set for each rep count
+        repsTokens.forEach((repsToken) => {
+          sets.push({
+            setNumber: setNumber++,
+            reps: parseInt(repsToken),
+            weight: isBw ? null : weight,
+            unit: isBw ? null : unit,
+            isBodyweight: isBw
+          });
+        });
+
+        // Skip past all the tokens we just processed
+        i += xIndex + 1; // Will be incremented by loop, so we end up after the weight
+        continue;
+      }
+
+      // Standard single rep x weight pattern
       if (/^\d/.test(tokens[i]) && tokens[i + 1] === 'x') {
         const reps = parseInt(tokens[i]);
         const weightToken = tokens[i + 2];
