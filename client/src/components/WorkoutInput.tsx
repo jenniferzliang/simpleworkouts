@@ -4,19 +4,22 @@ import { WorkoutParser, type ParseResult } from '../utils/workoutParser';
 import ParsePreview from './ParsePreview';
 
 const SAMPLE_WORKOUTS = [
-  `Bench Press 3x5x135
-Squat 5x5x225
-Barbell Row 3x5x115
-Overhead Press 3x5x95
-Deadlift 1x5x275`,
-  
-  `Push-ups 12 10 8
+  `Bench Press 4x8x185
+Incline DB Press 3x10x50
+Overhead Press 3x8x95
+Lateral Raise 3x12x20
+Tricep Extension 3x12x60`,
+
+  `Deadlift 3x5x225
+Barbell Row 4x8x135
 Pull-ups 3x8 bw
-Plank 3x60`,
-  
-  `Lat Pulldown 12x40kg 10x45kg 8x45kg
-Incline DB Press 12x20kg 12x20kg 12x20kg
-DB Row 12x30lb 12x30lb 10x30lb`
+Face Pull 3x15x40
+Bicep Curl 3x12x30`,
+
+  `Squat 4x8x185
+Leg Press 3x12x270
+Leg Curl 3x12x90
+Calf Raise 4x15x135`
 ];
 
 const WorkoutInput: React.FC = () => {
@@ -172,29 +175,29 @@ const WorkoutInput: React.FC = () => {
               >
                 <div className="flex items-center space-x-2 mb-1">
                   <span className="text-blue-600">🏋️</span>
-                  <span className="font-medium text-blue-900">Strength Training</span>
+                  <span className="font-medium text-blue-900">Push Day</span>
                 </div>
-                <p className="text-xs text-blue-700">Classic powerlifting movements</p>
+                <p className="text-xs text-blue-700">Chest, shoulders, triceps</p>
               </button>
               <button
                 onClick={() => loadSample(1)}
                 className="p-4 text-left bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg hover:from-green-100 hover:to-green-200 transition-all duration-200"
               >
                 <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-green-600">🤸</span>
-                  <span className="font-medium text-green-900">Bodyweight</span>
+                  <span className="text-green-600">💪</span>
+                  <span className="font-medium text-green-900">Pull Day</span>
                 </div>
-                <p className="text-xs text-green-700">No equipment needed</p>
+                <p className="text-xs text-green-700">Back, biceps, rear delts</p>
               </button>
               <button
                 onClick={() => loadSample(2)}
                 className="p-4 text-left bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg hover:from-purple-100 hover:to-purple-200 transition-all duration-200"
               >
                 <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-purple-600">💪</span>
-                  <span className="font-medium text-purple-900">Hypertrophy</span>
+                  <span className="text-purple-600">🦵</span>
+                  <span className="font-medium text-purple-900">Leg Day</span>
                 </div>
-                <p className="text-xs text-purple-700">Volume-focused training</p>
+                <p className="text-xs text-purple-700">Quads, hamstrings, calves</p>
               </button>
             </div>
           </div>
