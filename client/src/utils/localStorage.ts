@@ -69,6 +69,27 @@ export const createSession = (sessionData: Omit<WorkoutSession, 'sessionId'>): W
   return newSession;
 };
 
+// Append imported sessions, skipping any whose sessionId already exists
+export const importSessions = (toImport: WorkoutSession[]): { imported: number; skipped: number } => {
+  const sessions = getSessions();
+  const existingIds = new Set(sessions.map(s => s.sessionId));
+  let imported = 0;
+  let skipped = 0;
+
+  toImport.forEach(session => {
+    if (existingIds.has(session.sessionId)) {
+      skipped++;
+      return;
+    }
+    existingIds.add(session.sessionId);
+    sessions.push(session);
+    imported++;
+  });
+
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  return { imported, skipped };
+};
+
 // Settings management
 export const getSettings = (): UserSettings => {
   try {

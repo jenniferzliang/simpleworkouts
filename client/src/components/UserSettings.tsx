@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { getSettings, updateSettings, clearAllData } from '../utils/localStorage';
+import ImportExport from './ImportExport';
 
 const UserSettings: React.FC = () => {
   const settings = getSettings();
@@ -186,6 +187,8 @@ const UserSettings: React.FC = () => {
           </form>
         </div>
       </div>
+
+      <ImportExport />
     </div>
   );
 };
