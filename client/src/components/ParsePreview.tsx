@@ -1,5 +1,5 @@
 import React from 'react';
-import { ParseResult, ParsedExercise, ParseWarning, WorkoutSet } from '../types/index';
+import { ParseResult, ParsedExercise, ParseWarning, ParsedSet } from '../utils/workoutParser';
 
 interface ParsePreviewProps {
   parseResult: ParseResult;
@@ -227,7 +227,7 @@ const ExerciseCard: React.FC<{
   );
 };
 
-const SetRow: React.FC<{ set: WorkoutSet; unitPreference: 'kg' | 'lb' }> = ({ 
+const SetRow: React.FC<{ set: ParsedSet; unitPreference: 'kg' | 'lb' }> = ({ 
   set, 
   unitPreference 
 }) => {

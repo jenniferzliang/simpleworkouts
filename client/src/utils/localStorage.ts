@@ -69,38 +69,6 @@ export const createSession = (sessionData: Omit<WorkoutSession, 'sessionId'>): W
   return newSession;
 };
 
-export const updateSession = (sessionId: string, updates: Partial<WorkoutSession>): WorkoutSession | null => {
-  const sessions = getSessions();
-  const index = sessions.findIndex(s => s.sessionId === sessionId);
-  if (index === -1) return null;
-
-  sessions[index] = { ...sessions[index], ...updates };
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-  return sessions[index];
-};
-
-export const deleteSession = (sessionId: string): boolean => {
-  const sessions = getSessions();
-  const filtered = sessions.filter(s => s.sessionId !== sessionId);
-  if (filtered.length === sessions.length) return false;
-
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(filtered));
-  return true;
-};
-
-export const getSessionsByDateRange = (startDate?: string, endDate?: string): WorkoutSession[] => {
-  let sessions = getSessions();
-
-  if (startDate) {
-    sessions = sessions.filter(s => s.performedDate >= startDate);
-  }
-  if (endDate) {
-    sessions = sessions.filter(s => s.performedDate <= endDate);
-  }
-
-  return sessions.sort((a, b) => b.performedDate.localeCompare(a.performedDate));
-};
-
 // Settings management
 export const getSettings = (): UserSettings => {
   try {
@@ -123,32 +91,6 @@ export const updateSettings = (settings: Partial<UserSettings>): UserSettings =>
   const updated = { ...current, ...settings };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
   return updated;
-};
-
-// Analytics helpers
-export const getWeeklyTonnage = (weeks: number = 12): { week: string; tonnage: number }[] => {
-  const sessions = getSessions();
-  const weekMap = new Map<string, number>();
-
-  // Get date from N weeks ago
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - (weeks * 7));
-
-  sessions.forEach(session => {
-    const sessionDate = new Date(session.performedDate);
-    if (sessionDate >= startDate) {
-      // Get the start of the week (Sunday)
-      const weekStart = new Date(sessionDate);
-      weekStart.setDate(sessionDate.getDate() - sessionDate.getDay());
-      const weekKey = weekStart.toISOString().split('T')[0];
-
-      weekMap.set(weekKey, (weekMap.get(weekKey) || 0) + session.totalTonnage);
-    }
-  });
-
-  return Array.from(weekMap.entries())
-    .map(([week, tonnage]) => ({ week, tonnage }))
-    .sort((a, b) => a.week.localeCompare(b.week));
 };
 
 // Clear all data (useful for testing)

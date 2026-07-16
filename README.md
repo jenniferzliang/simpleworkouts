@@ -112,8 +112,7 @@ simpleworkouts/
 └── client/                # React app
     └── src/
         ├── components/    # React components (input, history, analytics, settings)
-        ├── utils/         # Parser, exercise database, localStorage helpers
-        └── types/         # TypeScript definitions
+        └── utils/         # Parser, exercise database, localStorage helpers
 ```
 
 ### Scripts
@@ -130,7 +129,6 @@ All data lives in the browser's localStorage:
 
 - `workout_sessions` — logged workout sessions (with cached totals)
 - `user_settings` — unit preference and timezone
-- `custom_exercises` — user-added exercises
 
 Data is per-browser: it doesn't sync across devices, and clearing site data
 erases it.
