@@ -197,18 +197,11 @@ Squat 5x5x100kg
 
 ## Production Deployment
 
-1. **Build the client**:
-   ```bash
-   cd client && npm run build
-   ```
+The app is deployed to GitHub Pages at https://jenniferzliang.github.io/simpleworkouts/.
 
-2. **Set environment variables**:
-   ```bash
-   NODE_ENV=production
-   MONGODB_URI=your-production-mongodb-uri
-   ```
-
-3. **Deploy to your platform** (Vercel, Railway, Fly.io, etc.)
+Every push to `main` triggers the `Deploy to GitHub Pages` workflow
+(`.github/workflows/deploy-pages.yml`), which builds the client and publishes
+`client/build`. The workflow can also be run manually from the Actions tab.
 
 ## Contributing
 

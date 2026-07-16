@@ -65,7 +65,7 @@ const WorkoutInput: React.FC = () => {
 
       // Create session
       const now = new Date();
-      const session = createSession({
+      createSession({
         performedDate: now.toISOString().split('T')[0],
         performedAtLocal: now.toISOString(),
         sourceText: workoutText,

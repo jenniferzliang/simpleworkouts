@@ -1,5 +1,5 @@
 // Frontend workout parser - no backend dependencies
-import { getExerciseByName, type Exercise } from './exerciseDatabase';
+import { getExerciseByName } from './exerciseDatabase';
 
 export interface ParsedSet {
   setNumber: number;
