@@ -1,6 +1,6 @@
 # Simple Workouts
 
-A fast, minimalist workout logging application that converts free-form text into structured workout data. Built with the MERN stack (MongoDB, Express, React, Node.js).
+A fast, minimalist workout logging application that converts free-form text into structured workout data. Fully client-side — built with React and TypeScript, with all data stored in the browser's localStorage.
 
 ## Features
 
@@ -17,17 +17,17 @@ A fast, minimalist workout logging application that converts free-form text into
 
 ## Architecture
 
-- **Backend**: Node.js + Express + MongoDB (Mongoose)
-- **Frontend**: React + TypeScript + Tailwind CSS + React Query
-- **Parsing**: Custom grammar-based text parser
-- **Data Model**: Optimized for fast queries with cached totals
+- **Frontend**: React + TypeScript + Tailwind CSS (no backend)
+- **Parsing**: Custom grammar-based text parser, runs in the browser
+- **Storage**: Browser localStorage — workout sessions, settings, and custom
+  exercises are saved per-browser, with totals cached on each session for
+  fast history and analytics views
 
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 18+
-- MongoDB (local or Atlas)
 - npm or yarn
 
 ### Installation
@@ -36,37 +36,15 @@ A fast, minimalist workout logging application that converts free-form text into
    ```bash
    git clone <repository-url>
    cd simpleworkouts
-   npm run install-all
+   npm install
    ```
 
-2. **Set up environment variables**:
-   ```bash
-   # Copy environment template
-   cp .env.example server/.env
-   
-   # Edit server/.env with your MongoDB URI
-   MONGODB_URI=mongodb://localhost:27017/simpleworkouts
-   ```
-
-3. **Start MongoDB** (if running locally):
-   ```bash
-   mongod
-   ```
-
-4. **Seed the database**:
-   ```bash
-   npm run server
-   cd server && npm run seed
-   ```
-
-5. **Start the application**:
+2. **Start the application**:
    ```bash
    npm run dev
    ```
 
-   This starts both the backend (port 5000) and frontend (port 3000) concurrently.
-
-6. **Open the app**: Navigate to `http://localhost:3000`
+3. **Open the app**: Navigate to `http://localhost:3000`
 
 ## Usage
 
@@ -131,42 +109,29 @@ The app recognizes common exercise abbreviations:
 
 ```
 simpleworkouts/
-├── server/                 # Backend API
-│   ├── models/            # Mongoose schemas
-│   ├── routes/            # API endpoints
-│   ├── utils/             # Parsing logic
-│   └── scripts/           # Database seeding
-├── client/                # React frontend
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── api/          # API client
-│   │   └── types/        # TypeScript definitions
-└── docs/                  # Product specifications
+└── client/                # React app
+    └── src/
+        ├── components/    # React components (input, history, analytics, settings)
+        └── utils/         # Parser, exercise database, localStorage helpers
 ```
 
 ### Scripts
 
 ```bash
-# Development
-npm run dev              # Start both server and client
-npm run server          # Start server only
-npm run client          # Start client only
-
-# Database
-npm run seed            # Seed database with exercises and default user
-
-# Production
-npm run build           # Build client for production
-npm start              # Start production server
+npm run dev             # Start the dev server (http://localhost:3000)
+npm run build           # Build for production
+npm test                # Run the parser test suite
 ```
 
-### API Endpoints
+### Data Storage
 
-- `POST /api/parse` - Parse workout text
-- `POST /api/sessions` - Create workout session
-- `GET /api/sessions` - List workout sessions
-- `GET /api/sessions/:id` - Get session details
-- `GET /api/analytics/weekly-tonnage` - Get weekly analytics
+All data lives in the browser's localStorage:
+
+- `workout_sessions` — logged workout sessions (with cached totals)
+- `user_settings` — unit preference and timezone
+
+Data is per-browser: it doesn't sync across devices, and clearing site data
+erases it.
 
 ### Testing the Parser
 

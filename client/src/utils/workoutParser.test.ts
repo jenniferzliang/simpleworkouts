@@ -1,5 +1,4 @@
 import { WorkoutParser } from './workoutParser';
-import * as exerciseDatabase from './exerciseDatabase';
 
 // Mock the exercise database
 jest.mock('./exerciseDatabase', () => {
