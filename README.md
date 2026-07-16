@@ -14,6 +14,8 @@ A fast, minimalist workout logging application that converts free-form text into
 - **Session history**: View all past workouts with detailed breakdowns
 - **Analytics**: Weekly tonnage tracking and trends
 - **Exercise aliases**: Support for common abbreviations (BP, OHP, etc.)
+- **Import & export**: Back up all workouts to a JSON file and import them
+  back (or into another browser), with a review step before anything is saved
 
 ## Architecture
 
@@ -131,7 +133,8 @@ All data lives in the browser's localStorage:
 - `user_settings` — unit preference and timezone
 
 Data is per-browser: it doesn't sync across devices, and clearing site data
-erases it.
+erases it. Use **Settings → Import & Export** to back up your workouts to a
+JSON file or move them to another browser.
 
 ### Testing the Parser
 

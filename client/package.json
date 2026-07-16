@@ -22,6 +22,11 @@
     "eject": "react-scripts eject",
     "dev": "react-scripts start"
   },
+  "jest": {
+    "transformIgnorePatterns": [
+      "node_modules/(?!uuid)"
+    ]
+  },
   "eslintConfig": {
     "extends": [
       "react-app",
