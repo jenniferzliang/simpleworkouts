@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { getSettings, createSession, WorkoutExercise } from '../utils/localStorage';
+import { getSettings, createSession } from '../utils/localStorage';
 import { WorkoutParser, type ParseResult } from '../utils/workoutParser';
+import { sessionFromParseResult } from '../utils/textFormat';
 import ParsePreview from './ParsePreview';
 
 const SAMPLE_WORKOUTS = [
@@ -36,47 +37,16 @@ const WorkoutInput: React.FC = () => {
     if (!parseResult) return;
 
     try {
-      // Convert parsed exercises to our local storage format
-      const exercises: WorkoutExercise[] = parseResult.exercises.map((ex, idx) => ({
-        exerciseId: ex.exercise.name.toLowerCase().replace(/\s+/g, '-'),
-        exerciseName: ex.exercise.name,
-        sequence: idx,
-        sets: ex.sets.map((set, setIdx) => ({
-          setNumber: setIdx + 1,
-          reps: set.reps,
-          weight: set.weight,
-          unit: set.unit,
-          isBodyweight: set.isBodyweight
-        })),
-        totalSets: ex.sets.length,
-        totalReps: ex.sets.reduce((sum, set) => sum + set.reps, 0),
-        totalTonnage: ex.sets.reduce((sum, set) => {
-          if (set.isBodyweight || !set.weight) return sum;
-          return sum + (set.weight * set.reps);
-        }, 0),
-        totalBwReps: ex.sets.reduce((sum, set) => set.isBodyweight ? sum + set.reps : sum, 0)
-      }));
-
-      // Calculate session totals
-      const totalSets = exercises.reduce((sum, ex) => sum + ex.totalSets, 0);
-      const totalReps = exercises.reduce((sum, ex) => sum + ex.totalReps, 0);
-      const totalTonnage = exercises.reduce((sum, ex) => sum + ex.totalTonnage, 0);
-      const totalBwReps = exercises.reduce((sum, ex) => sum + ex.totalBwReps, 0);
-
-      // Create session
       const now = new Date();
-      createSession({
-        performedDate: now.toISOString().split('T')[0],
-        performedAtLocal: now.toISOString(),
-        sourceText: workoutText,
-        exercises,
-        totalSets,
-        totalReps,
-        totalTonnage,
-        totalBwReps
-      });
+      const sessionData = sessionFromParseResult(
+        parseResult,
+        now.toISOString().split('T')[0],
+        now.toISOString(),
+        workoutText
+      );
+      createSession(sessionData);
 
-      alert(`Workout saved! Total tonnage: ${totalTonnage.toFixed(1)}${unitPreference}`);
+      alert(`Workout saved! Total tonnage: ${sessionData.totalTonnage.toFixed(1)}${unitPreference}`);
       setWorkoutText('');
       setParseResult(null);
       setShowPreview(false);

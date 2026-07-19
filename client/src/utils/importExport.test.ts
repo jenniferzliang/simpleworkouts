@@ -73,8 +73,8 @@ describe('parseImportFile', () => {
     expect(sessions).toHaveLength(1);
   });
 
-  it('rejects invalid JSON', () => {
-    const { sessions, errors } = parseImportFile('not json {');
+  it('rejects malformed JSON', () => {
+    const { sessions, errors } = parseImportFile('{"sessions": [truncated');
 
     expect(sessions).toHaveLength(0);
     expect(errors).toEqual(['File is not valid JSON']);
