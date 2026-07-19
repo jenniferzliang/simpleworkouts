@@ -8,6 +8,8 @@ import {
   getSessions,
   getSettings,
 } from './localStorage';
+import { WorkoutParser } from './workoutParser';
+import { buildTextExport, sessionFromParseResult, splitTextBlocks } from './textFormat';
 
 export const EXPORT_VERSION = 1;
 
@@ -34,8 +36,12 @@ export function buildExport(): ExportData {
   };
 }
 
-export function exportFileName(date: Date = new Date()): string {
-  return `simpleworkouts-export-${date.toISOString().split('T')[0]}.json`;
+export function exportFileName(extension: 'txt' | 'json', date: Date = new Date()): string {
+  return `simpleworkouts-export-${date.toISOString().split('T')[0]}.${extension}`;
+}
+
+export function buildTextExportFile(): string {
+  return buildTextExport(getSessions());
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -128,9 +134,15 @@ function parseSession(raw: unknown): WorkoutSession | string {
 }
 
 // Parse an uploaded file's text into importable sessions plus per-item
-// errors for anything skipped. Accepts a full export file or a bare
-// array of workout sessions.
+// errors for anything skipped. Accepts a plain-text export (workout
+// notation with `# YYYY-MM-DD` headers), a JSON export file, or a bare
+// JSON array of workout sessions.
 export function parseImportFile(text: string): ImportPreview {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return parseTextImport(text);
+  }
+
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -166,6 +178,43 @@ export function parseImportFile(text: string): ImportPreview {
     }
     seenIds.add(result.sessionId);
     sessions.push(result);
+  });
+
+  return { sessions, errors };
+}
+
+function parseTextImport(text: string): ImportPreview {
+  const today = new Date().toISOString().split('T')[0];
+  const blocks = splitTextBlocks(text, today);
+  if (blocks.length === 0) {
+    return { sessions: [], errors: ['No workouts found in file'] };
+  }
+
+  const unitPreference = getSettings().unitPreference;
+  const parser = new WorkoutParser();
+  const sessions: WorkoutSession[] = [];
+  const errors: string[] = [];
+
+  blocks.forEach(block => {
+    const result = parser.parseWorkoutText(block.lines.join('\n'), unitPreference);
+
+    result.warnings.forEach(warning => {
+      errors.push(`${block.date}: "${warning.originalText}" — ${warning.message}`);
+    });
+    if (result.exercises.length === 0) {
+      errors.push(`${block.date}: no valid exercises — skipped`);
+      return;
+    }
+
+    sessions.push({
+      sessionId: uuidv4(),
+      ...sessionFromParseResult(
+        result,
+        block.date,
+        `${block.date}T12:00:00.000Z`,
+        block.lines.join('\n')
+      ),
+    });
   });
 
   return { sessions, errors };

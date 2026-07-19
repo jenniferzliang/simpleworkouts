@@ -1,27 +1,41 @@
 import React, { useRef, useState } from 'react';
 import { getSessions, importSessions, WorkoutSession } from '../utils/localStorage';
-import { buildExport, exportFileName, parseImportFile, ImportPreview } from '../utils/importExport';
+import {
+  buildExport,
+  buildTextExportFile,
+  exportFileName,
+  parseImportFile,
+  ImportPreview,
+} from '../utils/importExport';
+
+// Content fingerprint used to flag likely re-imports even when the
+// incoming session has a freshly generated id (e.g. text imports)
+const contentKey = (session: WorkoutSession): string =>
+  `${session.performedDate}|${session.totalSets}|${session.totalReps}|${session.totalTonnage.toFixed(1)}`;
 
 const ImportExport: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [existingIds, setExistingIds] = useState<Set<string>>(new Set());
+  const [duplicateIds, setDuplicateIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [resultMessage, setResultMessage] = useState('');
 
   const sessionCount = getSessions().length;
 
-  const handleExport = () => {
-    const blob = new Blob([JSON.stringify(buildExport(), null, 2)], {
-      type: 'application/json',
-    });
+  const download = (content: string, extension: 'txt' | 'json', mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = exportFileName();
+    link.download = exportFileName(extension);
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleExportText = () => download(buildTextExportFile(), 'txt', 'text/plain');
+
+  const handleExportJson = () =>
+    download(JSON.stringify(buildExport(), null, 2), 'json', 'application/json');
 
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -29,14 +43,21 @@ const ImportExport: React.FC = () => {
     if (!file) return;
 
     const parsed = parseImportFile(await file.text());
-    const existing = new Set(getSessions().map(s => s.sessionId));
+    const existing = getSessions();
+    const existingIds = new Set(existing.map(s => s.sessionId));
+    const existingKeys = new Set(existing.map(contentKey));
+    const duplicates = new Set(
+      parsed.sessions
+        .filter(s => existingIds.has(s.sessionId) || existingKeys.has(contentKey(s)))
+        .map(s => s.sessionId)
+    );
 
     setResultMessage('');
     setPreview(parsed);
-    setExistingIds(existing);
+    setDuplicateIds(duplicates);
     // Preselect everything that isn't already in history
     setSelectedIds(
-      new Set(parsed.sessions.filter(s => !existing.has(s.sessionId)).map(s => s.sessionId))
+      new Set(parsed.sessions.filter(s => !duplicates.has(s.sessionId)).map(s => s.sessionId))
     );
   };
 
@@ -73,13 +94,16 @@ const ImportExport: React.FC = () => {
       <div className="p-8">
         <h2 className="text-xl font-bold text-gray-900 mb-2">📦 Import & Export</h2>
         <p className="text-sm text-gray-600 mb-6">
-          Back up your workouts to a JSON file, or import workouts from a previous export.
+          Back up your workouts as a readable text file in the same notation you log with
+          (dates as <code className="text-xs bg-gray-100 px-1 rounded"># 2026-07-16</code> headers),
+          then import it back here — or into another browser. JSON export is also available,
+          and both formats can be imported.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button
             type="button"
-            onClick={handleExport}
+            onClick={handleExportText}
             disabled={sessionCount === 0}
             className={`py-3 px-4 rounded-lg font-medium border transition-all duration-200 ${
               sessionCount === 0
@@ -89,7 +113,23 @@ const ImportExport: React.FC = () => {
           >
             <div className="flex items-center justify-center space-x-2">
               <span>⬇️</span>
-              <span>Export All Workouts ({sessionCount})</span>
+              <span>Export Text ({sessionCount})</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportJson}
+            disabled={sessionCount === 0}
+            className={`py-3 px-4 rounded-lg font-medium border transition-all duration-200 ${
+              sessionCount === 0
+                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+            }`}
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <span>⬇️</span>
+              <span>Export JSON</span>
             </div>
           </button>
 
@@ -100,13 +140,13 @@ const ImportExport: React.FC = () => {
           >
             <div className="flex items-center justify-center space-x-2">
               <span>⬆️</span>
-              <span>Import Workouts…</span>
+              <span>Import…</span>
             </div>
           </button>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".json,application/json"
+            accept=".txt,.json,.md,text/plain,application/json"
             onChange={handleFileSelected}
             className="hidden"
           />
@@ -124,7 +164,7 @@ const ImportExport: React.FC = () => {
         {preview && (
           <ImportReview
             preview={preview}
-            existingIds={existingIds}
+            duplicateIds={duplicateIds}
             selectedIds={selectedIds}
             onToggle={toggleSelected}
             onImport={handleImport}
@@ -138,12 +178,12 @@ const ImportExport: React.FC = () => {
 
 const ImportReview: React.FC<{
   preview: ImportPreview;
-  existingIds: Set<string>;
+  duplicateIds: Set<string>;
   selectedIds: Set<string>;
   onToggle: (sessionId: string) => void;
   onImport: () => void;
   onCancel: () => void;
-}> = ({ preview, existingIds, selectedIds, onToggle, onImport, onCancel }) => {
+}> = ({ preview, duplicateIds, selectedIds, onToggle, onImport, onCancel }) => {
   const selectedCount = selectedIds.size;
 
   return (
@@ -176,7 +216,7 @@ const ImportReview: React.FC<{
             <ImportSessionRow
               key={session.sessionId}
               session={session}
-              isDuplicate={existingIds.has(session.sessionId)}
+              isDuplicate={duplicateIds.has(session.sessionId)}
               isSelected={selectedIds.has(session.sessionId)}
               onToggle={() => onToggle(session.sessionId)}
             />
